@@ -1,0 +1,12 @@
+{
+  "main": {
+    "name": "Website của tôi",
+    "language": "vi",
+    "tokenSecret": "ĐỔI-THÀNH-CHUỖI-NGẪU-NHIÊN-DÀI (openssl rand -hex 32)",
+    "allowedOrigins": ["https://admin.example.com"],
+    "api": {
+      "base": "https://example.com/api/agent",
+      "key": "API-KEY-CỦA-WEBSITE"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "agent-agy",
+  "version": "0.2.0",
+  "description": "Backend chatbot quản trị nội dung & SEO chạy trên agy CLI, kèm widget nhúng vào admin PHP",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server/server.mjs",
+    "dev": "node --env-file-if-exists=.env server/server.mjs",
+    "mock-site": "node dev/mock-site.mjs",
+    "smoke": "node bridge/smoke.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
