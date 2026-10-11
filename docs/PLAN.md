@@ -33,6 +33,12 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [ ] Endpoint `POST /drafts` phía website; nút "Gửi lên CMS (nháp)" trong widget cho từng file `drafts/*.md`
 - [ ] Panel xem `plans/` và `drafts/` trong widget
 
+## Giai đoạn 3b/4b — Nội dung đầy đủ + đề xuất qua outbox (XONG cho site có `api.features`, thử trên hethongvinpearlresort)
+- [x] Đồng bộ nội dung đầy đủ bài viết / sản phẩm / danh mục, từ khoá, kết quả kiểm tra SEO, `site/inventory.md` chống trùng
+- [x] `agent/system-prompt-content.md`: quy trình tối ưu bài cũ & viết bài mới không trùng, định dạng file đề xuất
+- [x] `outbox/` → backend `POST /proposals` sau mỗi lượt, báo kết quả + link duyệt trong khung chat; `outbox/STATUS.md`
+- [x] Website duyệt (Áp dụng / Từ chối / Hoàn tác) — agent không bao giờ ghi thẳng nội dung
+
 ## Giai đoạn 5 — Vận hành & bảo mật
 - [ ] Giới hạn tần suất theo uid, nhật ký sử dụng + chi phí token mỗi lượt
 - [ ] Chuyển lưu trữ sang SQLite khi số hội thoại lớn (hiện: file JSON)

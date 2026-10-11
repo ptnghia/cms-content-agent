@@ -17,6 +17,7 @@ agy-token.php                    Backend Node (server/)
 - **Backend giữ toàn bộ dữ liệu**: hội thoại lưu ở `data/`. Mất hội thoại agy thì tự dựng lại ngữ cảnh từ lịch sử đã lưu.
 - **Agent chỉ làm việc trên file** trong workspace (agy headless không chạy được lệnh). Backend đồng bộ bài viết từ website và tính sẵn `posts/stats.md`.
 - **Không tự đăng bài**: agent chỉ ghi `plans/` và `drafts/`.
+- **Đề xuất lên website (tuỳ site)**: site khai báo `api.features` → đồng bộ thêm nội dung đầy đủ / sản phẩm / danh mục / SEO, và mọi file agent ghi vào `outbox/` được backend gửi `POST /proposals` vào hàng chờ duyệt của website (xem `docs/SITE_API.md` phần "Mở rộng").
 
 ## Chạy thử (máy dev)
 ```
