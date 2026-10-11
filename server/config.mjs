@@ -21,6 +21,7 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   port: Number(process.env.PORT || 3000),
   dataDir: resolveFromRoot(process.env.DATA_DIR || './data'),
+  storeDriver: process.env.STORE_DRIVER || 'file',
   sitesFile: resolveFromRoot(process.env.SITES_FILE || './config/sites.json'),
   maxConcurrent: Number(process.env.MAX_CONCURRENT || 2),
   maxMessageChars: Number(process.env.MAX_MESSAGE_CHARS || 8000),
