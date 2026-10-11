@@ -8,6 +8,7 @@ import * as store from './store.mjs';
 import { buildFreshPrompt } from './context.mjs';
 import { syncPosts, readSyncStatus } from './sync.mjs';
 import { runTurn } from '../bridge/agy-client.mjs';
+import { processOutbox, outboxSummary } from './outbox.mjs';
 
 const sites = loadSites();
 const WEB = path.join(ROOT, 'web');
@@ -164,8 +165,16 @@ async function handleChat(req, res) {
           : 'Agent không trả về nội dung. Hãy thử lại.';
         send({ type: 'delta', text: content });
       }
+      // Đề xuất agent vừa ghi vào outbox/ → gửi lên website (hàng chờ duyệt), báo lại trong khung chat
+      const sent = await processOutbox(siteId, site, workspace, conv.id).catch((e) => [{ file: 'outbox', ok: false, error: e.message }]);
+      if (sent.length) {
+        const note = outboxSummary(sent);
+        content += note;
+        send({ type: 'delta', text: note });
+        send({ type: 'proposals', items: sent });
+      }
       conv.messages.push({ role: 'assistant', content, at: new Date().toISOString() });
-      final = { type: 'result', status: out.status, denied: out.denied };
+      final = { type: 'result', status: out.status, denied: out.denied, proposals: sent.length };
     }
   } catch (err) {
     send({ type: 'error', message: err.message });

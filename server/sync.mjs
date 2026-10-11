@@ -3,6 +3,7 @@
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { ensureWorkspace } from './store.mjs';
+import { syncExtended, hasFeature } from './content-sync.mjs';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 200;
@@ -79,13 +80,16 @@ export function syncPosts(siteId, site) {
 async function doSync(siteId, site) {
   if (!site.api?.base || !site.api?.key) throw new Error('Site chưa cấu hình api.base/api.key');
   const ws = await ensureWorkspace(siteId);
-  const posts = [];
+  const full = [];
+  const withContent = hasFeature(site, 'content');   // lấy luôn nội dung trong cùng lượt (site hỗ trợ ?include=content)
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const data = await apiGet(site, `/posts?page=${page}&per_page=${PAGE_SIZE}`);
+    const data = await apiGet(site, `/posts?page=${page}&per_page=${PAGE_SIZE}${withContent ? '&include=content' : ''}`);
     if (!Array.isArray(data.items)) throw new Error('Site API /posts: thiếu "items"');
-    posts.push(...data.items);
+    full.push(...data.items);
     if (!data.next_page) break;
   }
+  // index.json chỉ giữ siêu dữ liệu; nội dung đầy đủ ghi riêng ở content/posts/<id>.md (content-sync.mjs)
+  const posts = full.map(({ content_html, excerpt, ...meta }) => meta);
   const syncedAt = new Date().toISOString();
   const dir = path.join(ws, 'posts');
   await atomicWrite(path.join(dir, 'index.json'), JSON.stringify({ syncedAt, count: posts.length, items: posts }, null, 2));
@@ -96,7 +100,8 @@ async function doSync(siteId, site) {
     `# Danh sách bài viết (${posts.length}) — đồng bộ ${syncedAt}\n\n` +
     `| ID | Tiêu đề | Trạng thái | Đăng | Cập nhật | Số từ | URL |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`);
   await atomicWrite(path.join(dir, 'stats.md'), buildStats(posts, syncedAt));
-  return { syncedAt, count: posts.length };
+  const extended = Array.isArray(site.api.features) && site.api.features.length ? await syncExtended(site, ws, full) : {};
+  return { syncedAt, count: posts.length, ...extended };
 }
 
 export async function readSyncStatus(ws) {

@@ -240,6 +240,7 @@
             if (ev.type === 'init') remember(ev.conversationId);
             else if (ev.type === 'delta') { acc += ev.text; bot.innerHTML = renderMarkdown(acc); log.scrollTop = log.scrollHeight; }
             else if (ev.type === 'error') add('err', ev.message);
+            else if (ev.type === 'proposals') sub.textContent = ev.items.filter(function (x) { return x.ok; }).length + ' đề xuất vừa gửi — chờ duyệt trong admin';
           }
         }
       } catch (e) {
@@ -257,7 +258,9 @@
         var r = await call('/api/sync', { method: 'POST' });
         var d = await r.json();
         if (!r.ok) throw new Error(d.message || 'Lỗi ' + r.status);
-        add('note', 'Đã đồng bộ ' + d.count + ' bài viết.');
+        var extra = ['products', 'categories', 'keywords'].filter(function (k) { return d[k] !== undefined; })
+          .map(function (k) { return d[k] + ' ' + { products: 'sản phẩm', categories: 'danh mục', keywords: 'từ khoá' }[k]; });
+        add('note', 'Đã đồng bộ ' + d.count + ' bài viết' + (extra.length ? ', ' + extra.join(', ') : '') + '.');
       } catch (e) { add('err', 'Đồng bộ thất bại: ' + e.message); }
       syncBtn.disabled = false;
       refreshStatus();
