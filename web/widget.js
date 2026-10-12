@@ -48,7 +48,18 @@
     '.form{display:flex;gap:6px;padding:8px;border-top:1px solid var(--border);background:var(--panel)}',
     'textarea{flex:1;resize:none;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:inherit;max-height:120px}',
     '.send{border:0;border-radius:8px;background:var(--accent);color:#fff;padding:0 14px;font:inherit;cursor:pointer}',
-    '.send:disabled{opacity:.5;cursor:default}'
+    '.send:disabled{opacity:.5;cursor:default}',
+    // trạng thái gửi / nhận / đang trả lời
+    '.m.user .tick{display:block;font-size:11px;opacity:.85;text-align:right;margin-top:2px;white-space:normal}',
+    '.m.user .tick.ok{opacity:1}',
+    '.status{align-self:flex-start;max-width:92%;background:var(--bot);padding:8px 12px;border-radius:12px;display:flex;flex-direction:column;gap:3px}',
+    '.status .line{display:flex;align-items:center;gap:8px}',
+    '.status .dots{display:inline-flex;gap:3px;flex:none}',
+    '.status .dots i{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.3;animation:agyb 1.2s infinite ease-in-out}',
+    '.status .dots i:nth-child(2){animation-delay:.15s}.status .dots i:nth-child(3){animation-delay:.3s}',
+    '.status small{color:var(--muted);font-size:11px;line-height:1.4}',
+    '@keyframes agyb{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}',
+    '@media(prefers-reduced-motion:reduce){.status .dots i{animation:none;opacity:.7}}'
   ].join('');
 
   // ---------- markdown tối giản, an toàn (escape trước, chỉ sinh thẻ trong danh sách trắng) ----------
@@ -208,10 +219,49 @@
       } catch (e) { /* bỏ qua */ }
     }
 
+    // --- trạng thái "đã nhận / đang trả lời" ---
+    function stepLabel(t) {
+      t = String(t || '').toLowerCase();
+      if (/write|edit|create|outbox|propos/.test(t)) return 'Đang soạn nội dung / đề xuất…';
+      if (/grep|search|find/.test(t)) return 'Đang tìm trong nội dung website…';
+      if (/list|dir|ls/.test(t)) return 'Đang rà danh sách bài viết, sản phẩm…';
+      if (/view|read|open|file/.test(t)) return 'Đang đọc dữ liệu website…';
+      if (/think|plan|reason/.test(t)) return 'Đang phân tích yêu cầu…';
+      return 'Trợ lý đang xử lý…';
+    }
+    function addStatus() {
+      var el = document.createElement('div');
+      el.className = 'status';
+      el.setAttribute('role', 'status');
+      el.innerHTML = '<div class="line"><span class="dots"><i></i><i></i><i></i></span><span class="lbl"></span></div><small class="hint"></small>';
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+      var lbl = el.querySelector('.lbl'), hint = el.querySelector('.hint');
+      var t0 = Date.now(), base = '';
+      function render() {
+        var sec = Math.floor((Date.now() - t0) / 1000);
+        var mm = Math.floor(sec / 60), ss = ('0' + (sec % 60)).slice(-2);
+        lbl.textContent = base + ' (' + mm + ':' + ss + ')';
+        hint.textContent = sec >= 20 ? 'Yêu cầu phức tạp có thể mất 1–3 phút. Bạn có thể thu nhỏ khung chat — trợ lý vẫn tiếp tục trả lời.' : '';
+      }
+      var timer = setInterval(render, 1000);
+      return {
+        set: function (text) { base = text; render(); },
+        remove: function () { clearInterval(timer); el.remove(); }
+      };
+    }
+
     // --- chat ---
     async function send(message) {
-      add('user', message);
-      var bot = add('bot', ''), acc = '';
+      var userEl = add('user', message);
+      var tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.textContent = 'Đang gửi…';
+      userEl.appendChild(tick);
+      var status = addStatus();
+      status.set('Đang gửi tin nhắn…');
+      var subBefore = sub.textContent;
+      var bot = add('bot', ''), acc = '', gotDelta = false;
       setBusy(true);
       controller = new AbortController();
       try {
@@ -227,6 +277,8 @@
           if (code === 'conversation_not_found') remember(null);
           throw new Error(msgs[code] || 'Lỗi ' + res.status + (code ? ' (' + code + ')' : ''));
         }
+        tick.textContent = 'Đã gửi';
+        status.set('Đã gửi, đang chờ trợ lý nhận…');
         var reader = res.body.getReader(), dec = new TextDecoder(), buf = '';
         for (;;) {
           var chunk = await reader.read();
@@ -237,8 +289,17 @@
             var block = buf.slice(0, idx); buf = buf.slice(idx + 2);
             if (block.indexOf('data: ') !== 0) continue;
             var ev = JSON.parse(block.slice(6));
-            if (ev.type === 'init') remember(ev.conversationId);
-            else if (ev.type === 'delta') { acc += ev.text; bot.innerHTML = renderMarkdown(acc); log.scrollTop = log.scrollHeight; }
+            if (ev.type === 'init') {
+              remember(ev.conversationId);
+              tick.textContent = '✓ Trợ lý đã nhận tin nhắn'; tick.className = 'tick ok';
+              status.set('Trợ lý đã nhận tin nhắn, đang xử lý…');
+              sub.textContent = 'Đang trả lời…';
+            }
+            else if (ev.type === 'step') { if (!gotDelta) status.set(stepLabel(ev.stepType)); }
+            else if (ev.type === 'delta') {
+              if (!gotDelta) { gotDelta = true; status.remove(); tick.textContent = '✓ Đã nhận · đang trả lời'; sub.textContent = 'Đang trả lời…'; }
+              acc += ev.text; bot.innerHTML = renderMarkdown(acc); log.scrollTop = log.scrollHeight;
+            }
             else if (ev.type === 'error') add('err', ev.message);
             else if (ev.type === 'proposals') sub.textContent = ev.items.filter(function (x) { return x.ok; }).length + ' đề xuất vừa gửi — chờ duyệt trong admin';
           }
@@ -246,6 +307,9 @@
       } catch (e) {
         if (e.name === 'AbortError') add('note', 'Đã dừng.'); else add('err', e.message);
       } finally {
+        status.remove();
+        if (tick.parentNode) { if (acc) { tick.textContent = '✓ Đã trả lời'; tick.className = 'tick ok'; } else { tick.remove(); } }
+        if (sub.textContent === 'Đang trả lời…') sub.textContent = subBefore;
         if (!acc) bot.remove();
         controller = null;
         setBusy(false);
