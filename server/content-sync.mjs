@@ -55,6 +55,18 @@ function contentFile(item, blocks) {
   return `---\n${fm.join('\n')}\n---\n\n${body || '(không có nội dung)\n'}`;
 }
 
+/** Dữ kiện CHỈ ĐỌC của sản phẩm (thông số, gói giá, khuyến mãi) — để viết đúng, không được đổi */
+const factsText = (f) => {
+  if (!f || typeof f !== 'object' || !Object.keys(f).length) return '';
+  const lines = [];
+  for (const [k, v] of Object.entries(f)) {
+    if (k === 'tuy_chon_gia') lines.push(...v.map((o) => `- Gói/tuỳ chọn: ${o.ten} — ${o.gia} đ / ${o.don_vi || '?'}${o.khuyen_mai ? ` (KM ${o.khuyen_mai})` : ''}`));
+    else if (k === 'khuyen_mai') lines.push(`- Khuyến mãi: ${v.gia_khuyen_mai} đ${v.ten_chuong_trinh ? ' — ' + v.ten_chuong_trinh : ''}`);
+    else lines.push(`- ${k}: ${String(v).replace(/\s+/g, ' ').slice(0, 300)}`);
+  }
+  return '(CHỈ ĐỌC — nguồn sự thật cho con số/chính sách; không đổi, không bịa thêm)\n' + lines.join('\n');
+};
+
 const faqText = (faq) => (Array.isArray(faq) && faq.length ? faq.map((q) => `- **H:** ${q.question}\n  **Đ:** ${q.answer}`).join('\n') : '');
 
 async function writeCollection(ws, kind, items, blocksOf) {
@@ -90,7 +102,7 @@ export async function syncExtended(site, ws, postsWithContent) {
       indexTable('Sản phẩm', items, [['Loại', (p) => p.type], ['Danh mục', (p) => p.category], ['Giá (chỉ xem)', (p) => p.price]]));
     if (hasFeature(site, 'content')) {
       await writeCollection(ws, 'products', items, (p) => [['Mô tả ngắn (mo_ta)', p.excerpt], ['Chi tiết / bảng giá (noi_dung)', p.content_html],
-        ['Bài viết chi tiết (noi_dung_1)', p.article_html], ['Hỏi đáp (thong_so_kt)', faqText(p.faq)]]);
+        ['Bài viết chi tiết (noi_dung_1)', p.article_html], ['Hỏi đáp (thong_so_kt)', faqText(p.faq)], ['Dữ kiện chỉ đọc (facts)', factsText(p.facts)]]);
     }
     report.products = items.length;
   }
@@ -136,6 +148,23 @@ export async function syncExtended(site, ws, postsWithContent) {
       '## 60 trang điểm thấp nhất', '| Loại | ID | Tiêu đề | Điểm | Từ khoá chính | Số từ |', '|---|---|---|---|---|---|', ...low.map((r) => `| ${r} |`), '',
       '## Vấn đề theo trang', ...[...byPage].map(([k, v]) => `### ${k}\n${v.map((x) => `- ${x}`).join('\n')}`), '',
     ].join('\n'));
+    // Tách theo loại để làm từng nhóm: seo/audit-products.md, seo/audit-categories.md
+    for (const [kind, file] of [['product', 'audit-products.md'], ['category', 'audit-categories.md']]) {
+      const sc = (s.scores || []).filter((p) => p.kind === kind).sort((x, y) => x.score - y.score);
+      const iss = new Map();
+      for (const i of (s.issues || []).filter((x) => x.kind === kind)) {
+        const k = `${i.id} ${i.title}`;
+        if (!iss.has(k)) iss.set(k, []);
+        iss.get(k).push(`${i.level === 'error' ? 'LỖI' : i.level === 'warning' ? 'cảnh báo' : 'lưu ý'}: ${i.message}`);
+      }
+      await atomicWrite(path.join(ws, 'seo', file), [
+        `# Kiểm tra SEO — ${kind === 'product' ? 'sản phẩm' : 'danh mục'} (${sc.length} trang, ${s.generated_at})`, '',
+        'Làm từ trang điểm thấp lên. Chỉ sửa chữ / meta / cấu trúc — KHÔNG đổi giá, con số, alias.', '',
+        '| ID | Tiêu đề | Điểm | Từ khoá chính | Số từ | Số lỗi |', '|---|---|---|---|---|---|',
+        ...sc.map((p) => `| ${[p.id, p.title, p.score, p.focus_keyword, p.words, (iss.get(`${p.id} ${p.title}`) || []).length].map(cell).join(' | ')} |`), '',
+        '## Chi tiết theo trang', ...[...iss].map(([k, v]) => `### #${k}\n${v.map((x) => `- ${x}`).join('\n')}`), '',
+      ].join('\n'));
+    }
     report.seo = s.pages;
   }
   if (hasFeature(site, 'proposals')) await writeProposalStatus(site, ws).catch(() => {});

@@ -15,6 +15,8 @@
 //
 // Định dạng 2 — JSON  outbox/<tên>.json   {"action","type","id","summary","note","fields":{…}}  (dùng cho FAQ: fields.thong_so_kt = [{question, answer}])
 //
+// JSON còn nhận "patches": {"noi_dung_1":[{"find":"…","replace":"…"}]} — vá từng đoạn (chỉ action update, trường HTML), không gửi kèm cả trường.
+//
 // Sau khi gửi: file chuyển vào outbox/sent/<thời gian>-<tên>, kèm <…>.result.json (kết quả / lỗi / cảnh báo của website).
 import { readdir, readFile, mkdir, rename, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -133,7 +135,7 @@ export async function processOutbox(siteId, site, ws, source = '') {
       if ((await stat(file)).size > MAX_BYTES) throw new Error(`File lớn hơn ${MAX_BYTES / 1000} KB`);
       const text = await readFile(file, 'utf8');
       const p = name.toLowerCase().endsWith('.json') ? (() => { const j = JSON.parse(text); return { ...j, title: j.summary || j.title || '' }; })() : parseMarkdownProposal(text);
-      r = await postProposal(site, { action: p.action, type: p.type, id: p.id, title: p.title, note: p.note, fields: p.fields,
+      r = await postProposal(site, { action: p.action, type: p.type, id: p.id, title: p.title, note: p.note, fields: p.fields, patches: p.patches,
         source: `agent:${siteId}:${name}${source ? ':' + source : ''}`.slice(0, 100) });
     } catch (e) {
       r = { ok: false, error: e.message };
