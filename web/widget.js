@@ -3,6 +3,7 @@
  *
  *   <script src="https://AGENT-HOST/widget.js"
  *           data-token-url="/admin/agy-token.php"   (endpoint PHP trả {"token": "..."} ; hoặc data-token="...")
+ *           data-upload-url="/admin/agy-upload.php" (tuỳ chọn: bật nút 📎 đính kèm hình; endpoint nhận images[] và trả {"files":[{file,name,w,h}]})
  *           data-mode="floating"                    (floating | inline)
  *           data-target="#agy-chat"                 (chỉ khi inline)
  *           data-title="Trợ lý nội dung"></script>
@@ -59,7 +60,19 @@
     '.status .dots i:nth-child(2){animation-delay:.15s}.status .dots i:nth-child(3){animation-delay:.3s}',
     '.status small{color:var(--muted);font-size:11px;line-height:1.4}',
     '@keyframes agyb{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}',
-    '@media(prefers-reduced-motion:reduce){.status .dots i{animation:none;opacity:.7}}'
+    '@media(prefers-reduced-motion:reduce){.status .dots i{animation:none;opacity:.7}}',
+    // đính kèm hình
+    '.attach{display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px 0;background:var(--panel);border-top:1px solid var(--border)}',
+    '.attach:empty{display:none}',
+    '.thumb{position:relative;width:62px;height:62px;border-radius:8px;overflow:hidden;border:1px solid var(--border);background:var(--bg)}',
+    '.thumb img{width:100%;height:100%;object-fit:cover;display:block}',
+    '.thumb button{position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:12px;line-height:20px;padding:0;cursor:pointer}',
+    '.clip{border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;width:38px;font-size:17px;cursor:pointer;flex:none}',
+    '.clip:disabled{opacity:.5;cursor:default}',
+    '.m .pics{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}',
+    '.m .pics a{display:block;width:84px;height:84px;border-radius:8px;overflow:hidden;border:2px solid rgba(255,255,255,.55)}',
+    '.m .pics img{width:100%;height:100%;object-fit:cover;display:block}',
+    '.drop .panel{outline:2px dashed var(--accent);outline-offset:-6px}'
   ].join('');
 
   // ---------- markdown tối giản, an toàn (escape trước, chỉ sinh thẻ trong danh sách trắng) ----------
@@ -142,7 +155,8 @@
       '<button class="ibtn new" title="Hội thoại mới">Mới</button>' +
       (mode === 'floating' ? '<button class="ibtn close" aria-label="Đóng">✕</button>' : '') + '</div>' +
       '<div class="log" aria-live="polite"></div>' +
-      '<form class="form"><textarea rows="1" placeholder="Nhập yêu cầu… (Enter gửi, Shift+Enter xuống dòng)"></textarea>' +
+      '<div class="attach" aria-label="Hình đính kèm"></div>' +
+      '<form class="form">' + (opts.uploadUrl ? '<button class="clip" type="button" title="Đính kèm hình (tối đa 5, mỗi hình ≤ 8 MB)" aria-label="Đính kèm hình">📎</button><input class="file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>' : '') + '<textarea rows="1" placeholder="Nhập yêu cầu… (Enter gửi, Shift+Enter xuống dòng)"></textarea>' +
       '<button class="send" type="submit">Gửi</button><button class="ibtn stop hidden" type="button">Dừng</button></form>' +
       '</div></div>';
 
@@ -180,17 +194,75 @@
       return res;
     }
 
+    // --- hình đính kèm ---
+    var ATT_MARK = '[Hình đính kèm';
+    var pending = [];                                   // File đang chờ gửi
+    var attachBox = $('.attach'), fileIn = $('.file'), clipBtn = $('.clip');
+    function imgUrl(name) {                              // ảnh nằm ở <thư mục gốc site>/img_data/images/, suy ra từ địa chỉ upload
+      try { return new URL('../img_data/images/' + encodeURIComponent(name), new URL(opts.uploadUrl, location.href)).href; } catch (e) { return ''; }
+    }
+    function renderUser(el, text) {
+      var i = text.indexOf(ATT_MARK), body = i >= 0 ? text.slice(0, i).trim() : text;
+      el.textContent = body;
+      if (i < 0 || !opts.uploadUrl) return;
+      var names = [], re = /^\s*\d+\.\s+([A-Za-z0-9._-]+\.(?:webp|jpe?g|png|gif))/gim, m;   // chỉ tên file ở đầu mỗi dòng danh sách (không lấy "tên gốc")
+      while ((m = re.exec(text.slice(i)))) names.push(m[1]);
+      if (!names.length) return;
+      var box = document.createElement('div'); box.className = 'pics';
+      names.forEach(function (n) {
+        var a = document.createElement('a'), im = document.createElement('img');
+        a.href = imgUrl(n); a.target = '_blank'; a.rel = 'noopener'; im.src = a.href; im.alt = ''; im.loading = 'lazy'; a.appendChild(im); box.appendChild(a);
+      });
+      el.appendChild(box);
+    }
+    function paintAttach() {
+      if (!attachBox) return;
+      attachBox.textContent = '';
+      pending.forEach(function (f, i) {
+        var t = document.createElement('div'), im = document.createElement('img'), b = document.createElement('button');
+        t.className = 'thumb'; im.src = URL.createObjectURL(f); im.alt = f.name; im.onload = function () { URL.revokeObjectURL(im.src); };
+        b.type = 'button'; b.textContent = '✕'; b.title = 'Bỏ hình này'; b.setAttribute('aria-label', 'Bỏ hình ' + f.name);
+        b.addEventListener('click', function () { pending.splice(i, 1); paintAttach(); });
+        t.appendChild(im); t.appendChild(b); attachBox.appendChild(t);
+      });
+    }
+    function addFiles(list) {
+      var warn = '';
+      Array.prototype.forEach.call(list || [], function (f) {
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(f.type)) { warn = 'Chỉ nhận hình JPG, PNG, WebP hoặc GIF.'; return; }
+        if (f.size > 8 * 1024 * 1024) { warn = 'Hình "' + f.name + '" lớn hơn 8 MB.'; return; }
+        if (pending.length >= 5) { warn = 'Tối đa 5 hình mỗi lần gửi.'; return; }
+        pending.push(f);
+      });
+      paintAttach();
+      if (warn) add('note', warn);
+    }
+    async function uploadPending() {                     // → mảng {file,name,w,h} đã nằm trên website
+      var fd = new FormData();
+      pending.forEach(function (f) { fd.append('images[]', f, f.name); });
+      var r = await fetch(opts.uploadUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      var j = {}; try { j = await r.json(); } catch (e) { /* bỏ qua */ }
+      if (!r.ok || !j.files) throw new Error(j.error || 'Không tải được hình (' + r.status + ')');
+      return j.files;
+    }
+    function attachBlock(files) {
+      return '\n\n' + ATT_MARK + ' — ' + files.length + ' hình đã tải lên website, nằm trong img_data/images/ (dùng tên file này cho hinh_anh hoặc <img src="img_data/images/…">)]\n' +
+        files.map(function (f, i) { return (i + 1) + '. ' + f.file + ' (tên gốc: ' + f.name + ', ' + f.w + '×' + f.h + ')'; }).join('\n');
+    }
+
     // --- UI ---
     function add(kind, text) {
       var el = document.createElement('div');
       el.className = 'm ' + kind;
-      if (kind === 'bot') el.innerHTML = renderMarkdown(text || ''); else el.textContent = text || '';
+      if (kind === 'bot') el.innerHTML = renderMarkdown(text || '');
+      else if (kind === 'user') renderUser(el, text || '');
+      else el.textContent = text || '';
       log.appendChild(el);
       log.scrollTop = log.scrollHeight;
       return el;
     }
     function setBusy(b) {
-      sendBtn.disabled = b; ta.disabled = b; syncBtn.disabled = b;
+      sendBtn.disabled = b; ta.disabled = b; syncBtn.disabled = b; if (clipBtn) clipBtn.disabled = b;
       stopBtn.classList.toggle('hidden', !b);
       sendBtn.classList.toggle('hidden', b);
       if (!b) ta.focus();
@@ -252,7 +324,8 @@
     }
 
     // --- chat ---
-    async function send(message) {
+    async function send(message, files) {
+      if (files && files.length) message += attachBlock(files);
       var userEl = add('user', message);
       var tick = document.createElement('span');
       tick.className = 'tick';
@@ -333,18 +406,38 @@
     shadow.querySelector('.form').addEventListener('submit', function (e) {
       e.preventDefault();
       var t = ta.value.trim();
-      if (!t || controller) return;
-      ta.value = '';
-      send(t);
+      if ((!t && !pending.length) || controller) return;
+      if (!t) t = 'Tôi gửi kèm hình ảnh để dùng cho bài viết.';
+      if (!pending.length) { ta.value = ''; send(t); return; }
+      setBusy(true);
+      var hint = add('note', 'Đang tải ' + pending.length + ' hình lên website…');
+      uploadPending().then(function (files) {
+        hint.remove(); ta.value = ''; pending = []; paintAttach(); setBusy(false); send(t, files);
+      }).catch(function (err) {
+        hint.remove(); setBusy(false); add('err', 'Tải hình thất bại: ' + err.message + ' — hình vẫn đang chờ, bạn thử gửi lại.');
+      });
     });
     ta.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); shadow.querySelector('.form').requestSubmit(); }
     });
     stopBtn.addEventListener('click', function () { if (controller) controller.abort(); });
+    if (clipBtn && fileIn) {
+      clipBtn.addEventListener('click', function () { fileIn.click(); });
+      fileIn.addEventListener('change', function () { addFiles(fileIn.files); fileIn.value = ''; });
+      ta.addEventListener('paste', function (e) {        // dán ảnh từ clipboard
+        var items = (e.clipboardData && e.clipboardData.files) || [];
+        if (items.length) { e.preventDefault(); addFiles(items); }
+      });
+      var rootEl = $('.root');
+      ['dragover', 'dragenter'].forEach(function (ev) { panel.addEventListener(ev, function (e) { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) { e.preventDefault(); rootEl.classList.add('drop'); } }); });
+      ['dragleave', 'drop'].forEach(function (ev) { panel.addEventListener(ev, function () { rootEl.classList.remove('drop'); }); });
+      panel.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
+    }
     syncBtn.addEventListener('click', sync);
     $('.new').addEventListener('click', function () {
       if (controller) controller.abort();
       remember(null);
+      pending = []; paintAttach();
       log.textContent = '';
       add('note', 'Hội thoại mới.');
     });
@@ -364,7 +457,7 @@
   function fromScript(el) {
     var d = el.dataset;
     var origin = d.api || new URL(el.src, location.href).origin;
-    return { api: origin, token: d.token, tokenUrl: d.tokenUrl, mode: d.mode, target: d.target, title: d.title };
+    return { api: origin, token: d.token, tokenUrl: d.tokenUrl, uploadUrl: d.uploadUrl, mode: d.mode, target: d.target, title: d.title };
   }
 
   window.AgyChat = { mount: mount };
