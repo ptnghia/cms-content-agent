@@ -9,6 +9,7 @@ import { buildFreshPrompt } from './context.mjs';
 import { syncPosts, readSyncStatus } from './sync.mjs';
 import { runTurn } from '../bridge/agy-client.mjs';
 import { processOutbox, outboxSummary } from './outbox.mjs';
+import { normalizeCompose, buildComposePrompt, parseComposeResponse } from './compose.mjs';
 
 const sites = loadSites();
 const WEB = path.join(ROOT, 'web');
@@ -188,6 +189,61 @@ async function handleChat(req, res) {
   }
 }
 
+// ---------- plugin CKEditor "Viết bằng AI": một lượt, không lưu hội thoại, không ghi outbox ----------
+const composeLog = new Map();   // uid -> [thời điểm các lần gọi gần đây]
+const COMPOSE_PER_HOUR = Number(process.env.COMPOSE_PER_HOUR || 12);
+
+async function handleCompose(req, res) {
+  const auth = authenticate(req, res);
+  if (!auth) return;
+  const { siteId, uid, site, cors } = auth;
+  let body;
+  try { body = await readJson(req, 450_000); } catch { return sendJson(res, 400, { error: 'bad_json' }, cors); }
+  const r = normalizeCompose(body);
+  if (r.mode === 'new' && !r.brief && !r.keyword) return sendJson(res, 400, { error: 'empty_brief', message: 'Hãy mô tả bài cần viết hoặc nhập từ khoá chính.' }, cors);
+  if (r.mode === 'optimize' && !r.cur.noi_dung.replace(/<[^>]*>/g, '').trim()) return sendJson(res, 400, { error: 'empty_content', message: 'Chưa có nội dung để tối ưu.' }, cors);
+  const now = Date.now();
+  const recent = (composeLog.get(`${siteId}:${uid}`) || []).filter((t) => now - t < 3_600_000);
+  if (recent.length >= COMPOSE_PER_HOUR) return sendJson(res, 429, { error: 'rate_limited', message: `Đã dùng ${COMPOSE_PER_HOUR} lần trong 1 giờ, vui lòng thử lại sau.` }, cors);
+  if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: 'Hệ thống đang bận, thử lại sau ít phút.' }, cors);
+  recent.push(now); composeLog.set(`${siteId}:${uid}`, recent);
+
+  activeCount++;
+  res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', ...cors });
+  const send = (ev) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(ev)}\n\n`); };
+  const ping = setInterval(() => { if (!res.writableEnded) res.write(': ping\n\n'); }, 15_000);
+  const ac = new AbortController();
+  res.on('close', () => ac.abort());
+  try {
+    const workspace = await store.ensureWorkspace(siteId);
+    const prompt = await buildComposePrompt(site, workspace, r);
+    let chars = 0;
+    let agyId;
+    const turn = (text, resume) => runTurn({
+      prompt: text, cwd: workspace, addDirs: [KNOWLEDGE_DIR], signal: ac.signal, agyConversationId: resume,
+      onEvent: (ev) => {
+        if (ev.type === 'init') agyId = ev.agyConversationId;
+        else if (ev.type === 'delta') { chars += ev.text.length; send({ type: 'progress', chars }); }
+        else if (ev.type === 'step') send({ type: 'step', stepType: ev.stepType, state: ev.state });
+      },
+    });
+    let out = await turn(prompt);
+    for (let i = 0; i < 2 && !out.response.trim() && out.status !== 'CANCELLED' && agyId && !ac.signal.aborted; i++) {
+      // Agent cố chạy lệnh (bị chặn) nên chưa trả kết quả → nhắc dùng công cụ đọc file rồi trả đúng định dạng
+      out = await turn('Lệnh shell bị từ chối. Hãy chỉ dùng công cụ đọc file (hoặc không đọc gì nếu đã đủ dữ kiện) rồi trả kết quả ĐÚNG định dạng các mục ===TÊN=== đã nêu.', agyId);
+    }
+    if (out.status === 'CANCELLED') return;
+    const parsed = parseComposeResponse(out.response || '');
+    send({ type: 'result', mode: r.mode, scope: r.scope, ...parsed });
+  } catch (err) {
+    send({ type: 'error', message: err.message });
+  } finally {
+    clearInterval(ping);
+    activeCount--;
+    res.end();
+  }
+}
+
 async function handleList(req, res) {
   const auth = authenticate(req, res);
   if (!auth) return;
@@ -250,6 +306,7 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && p === '/widget.js') {
     return void serveFile(res, path.join(WEB, 'widget.js'), 'text/javascript; charset=utf-8');
   }
+  if (req.method === 'POST' && p === '/api/compose') return void wrap(() => handleCompose(req, res));
   if (req.method === 'POST' && p === '/api/chat') return void wrap(() => handleChat(req, res));
   if (req.method === 'GET' && p === '/api/conversations') return void wrap(() => handleList(req, res));
   if (req.method === 'POST' && p === '/api/sync') return void wrap(() => handleSync(req, res));
