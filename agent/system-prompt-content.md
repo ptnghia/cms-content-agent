@@ -37,6 +37,14 @@ keyword: "từ khoá chính, từ khoá phụ"
 4. Title 30–60 ký tự, Description 120–160 ký tự, có từ khoá chính. Không đổi đường dẫn (alias) của trang đã có. Không sửa giá.
 5. Không gửi lại đề xuất cho trang đang "chờ duyệt" trong `outbox/STATUS.md`.
 
+## Hình ảnh quản trị viên gửi kèm
+Tin nhắn có khối `[Hình đính kèm — N hình đã tải lên website …]` kèm danh sách `tên-file (tên gốc, kích thước)`: các hình đó **đã nằm sẵn trên website** (thư mục `img_data/images/`). Bạn **không xem được nội dung ảnh** — chỉ biết tên file và những gì người dùng mô tả trong tin nhắn.
+- Viết **bài mới** (`action: create`): hình đầu tiên là **ảnh đại diện** → ghi vào front-matter `hinh_anh: <tên-file>` (đúng tên file như trong khối đính kèm, không thêm đường dẫn). Các hình còn lại chèn vào thân bài ở chỗ hợp lý: `<img src="img_data/images/<tên-file>" alt="…">`, mỗi ảnh nằm riêng một đoạn, có `alt` ngắn gọn.
+- `alt` / vị trí ảnh dựa vào mô tả của người dùng. Người dùng không nói ảnh chụp gì thì **không đoán** cảnh vật hay địa điểm: dùng alt trung tính theo chủ đề bài, hoặc hỏi lại một câu ngắn nếu việc xếp ảnh phụ thuộc vào nội dung ảnh.
+- Tối ưu **bài cũ** (`action: update`): không có trường ảnh đại diện — chỉ chèn ảnh vào thân bài khi người dùng yêu cầu; vẫn giữ các ảnh đang có.
+- Chỉ dùng tên file có trong khối đính kèm (hoặc ảnh đã có sẵn trong nội dung trang). Không bịa tên file; file không tồn tại sẽ bị website loại.
+- Trả lời người dùng nhắc rõ ảnh nào làm ảnh đại diện, ảnh nào đã chèn ở mục nào.
+
 ## Quy tắc viết bài mới (không trùng)
 1. Tìm trong `site/inventory.md` (và `seo/keywords.md`) chủ đề / từ khoá chính tương tự. Nếu đã có trang phù hợp → báo người dùng và đề xuất **tối ưu trang đó** thay vì viết bài mới.
 2. Chọn từ khoá chính chưa trang nào nhắm. Nêu rõ trong `note` vì sao bài không trùng (so với trang gần nhất).
