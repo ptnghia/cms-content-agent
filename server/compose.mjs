@@ -10,6 +10,12 @@ const SCOPES = {
   seo: 'CHỈ tối ưu SEO: giữ nguyên NỘI DUNG (không trả mục NOI_DUNG), chỉ trả TEN, MO_TA, TITLE, DES, KEYWORD.',
   content: 'CHỈ tối ưu NỘI DUNG (cấu trúc, diễn đạt, từ khoá, liên kết nội bộ): không trả TITLE, DES, KEYWORD.',
 };
+const TYPES = {
+  post: 'bài viết tin tức',
+  product: 'SẢN PHẨM (trang bán villa / combo / phòng / tour)',
+  category: 'DANH MỤC (trang điểm đến / nhóm sản phẩm)',
+};
+const TARGETS = { mo_ta: 'Mô tả ngắn (mo_ta)', noi_dung: 'Nội dung (noi_dung)', noi_dung_1: 'Bài viết chi tiết (noi_dung_1)' };
 const clip = (s, n) => String(s ?? '').slice(0, n);
 
 export function normalizeCompose(b) {
@@ -20,7 +26,10 @@ export function normalizeCompose(b) {
     keyword: clip(b.keyword, 200).trim(),
     length: LENGTHS[b.length] ? b.length : 'vua',
     scope: SCOPES[b.scope] ? b.scope : 'all',
-    postId: Number(b.postId) > 0 ? Number(b.postId) : 0,
+    type: TYPES[b.type] ? b.type : 'post',
+    target: TARGETS[b.target] ? b.target : 'noi_dung',
+    postId: Number(b.itemId || b.postId) > 0 ? Number(b.itemId || b.postId) : 0,
+    others: Object.fromEntries(Object.entries(b.others && typeof b.others === 'object' ? b.others : {}).filter(([k]) => TARGETS[k]).map(([k, v]) => [k, clip(v, 20000)])),
     cur: { ten: clip(b.cur?.ten, 300), mo_ta: clip(b.cur?.mo_ta, 2000), noi_dung: clip(b.cur?.noi_dung, 300000),
            title: clip(b.cur?.title, 300), des: clip(b.cur?.des, 600), keyword: clip(b.cur?.keyword, 500) },
   };
@@ -54,7 +63,7 @@ async function loadItems(ws) {
       items.push({
         kind: { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), kw: fmVal(fm, 'focus_keyword'),
         keywords: fmVal(fm, 'keywords'), score: fmVal(fm, 'seo_score'), status: fmVal(fm, 'status'), text: main,
-        facts: facts ? facts[1].trim().slice(0, 600) : '', issues: issues.split('\n').map((l) => l.replace(/^  - /, '').replace(/^"|"$/g, '')).filter(Boolean),
+        facts: facts ? facts[1].trim().slice(0, 600) : '', factsFull: facts ? facts[1].trim().slice(0, 1800) : '', issues: issues.split('\n').map((l) => l.replace(/^  - /, '').replace(/^"|"$/g, '')).filter(Boolean),
       });
     }
   }
@@ -79,17 +88,18 @@ const rel = (it, n) => `### ${line(it)}\nTóm tắt: ${it.text.slice(0, n)}${it.
 /** Khối dữ liệu đưa thẳng vào prompt: danh mục trang (chống trùng + liên kết nội bộ) + 3–5 trang liên quan nhất */
 export async function buildContextBlock(ws, r) {
   const items = await loadItems(ws);
-  const query = `${r.brief} ${r.keyword} ${r.mode === 'optimize' ? `${r.cur.ten} ${r.cur.keyword} ${plainText(r.cur.noi_dung).slice(0, 600)}` : ''}`;
-  const self = r.mode === 'optimize' && r.postId ? { kind: 'post', id: r.postId } : null;
+  const query = `${r.brief} ${r.keyword} ${r.cur.ten} ${r.mode === 'optimize' ? `${r.cur.keyword} ${plainText(r.cur.noi_dung).slice(0, 600)}` : ''}`;
+  const self = r.postId ? { kind: r.type, id: r.postId } : null;
   const top = rank(items, query, self).slice(0, 5).map((x) => x.it);
   const parts = [];
   parts.push(`## Dữ liệu website (đã chọn sẵn — KHÔNG cần và KHÔNG được mở file)\n\n### Danh mục toàn bộ trang (dùng để chống trùng chủ đề và lấy slug liên kết nội bộ)\n` +
     items.filter((it) => it.slug && it.status !== 'hidden').map((it) => `- ${line(it)}`).join('\n'));
+  const me = self ? items.find((it) => it.kind === self.kind && it.id === self.id) : null;
+  if (r.type !== 'post' && me?.factsFull) parts.push(`### Dữ kiện chỉ đọc của CHÍNH ${r.type === 'product' ? 'sản phẩm' : 'danh mục'} này (nguồn sự thật cho con số / chính sách; không đổi, không bịa thêm)\n${me.factsFull}`);
   if (r.mode === 'new') {
     parts.push(`### Các trang liên quan nhất tới yêu cầu (nguồn dữ kiện; có thể trùng chủ đề)\n` + (top.length ? top.map((it) => rel(it, 900)).join('\n\n') : '(không có trang nào liên quan rõ ràng)'));
   } else {
-    const me = self ? items.find((it) => it.kind === 'post' && it.id === self.id) : null;
-    if (me) parts.push(`### Điểm SEO hiện tại của bài đang tối ưu: ${me.score}/100\n` + (me.issues.length ? me.issues.map((x) => `- ${x}`).join('\n') : '(không có lỗi ghi nhận)'));
+    if (me) parts.push(`### Điểm SEO hiện tại của trang đang tối ưu: ${me.score}/100\n` + (me.issues.length ? me.issues.map((x) => `- ${x}`).join('\n') : '(không có lỗi ghi nhận)'));
     parts.push(`### Trang liên quan (gợi ý liên kết nội bộ / đối chiếu dữ kiện)\n` + (top.length ? top.map((it) => rel(it, 450)).join('\n\n') : '(không có)'));
   }
   return parts.join('\n\n');
@@ -102,9 +112,20 @@ export async function buildComposePrompt(site, workspace, r) {
     parts.push(`## Yêu cầu: VIẾT BÀI MỚI\nĐộ dài: ${LENGTHS[r.length]}.\nMô tả của quản trị viên:\n${r.brief || '(không mô tả — suy ra từ từ khoá)'}\n${r.keyword ? `Từ khoá chính đề xuất: ${r.keyword}\n` : ''}`);
     if (r.cur.noi_dung.trim()) parts.push(`Ô nội dung hiện có nháp (tham khảo, có thể dùng lại ý):\n${clip(r.cur.noi_dung, 8000)}`);
   } else {
-    parts.push(`## Yêu cầu: TỐI ƯU BÀI CÓ SẴN\nPhạm vi: ${SCOPES[r.scope]}\nGợi ý của quản trị viên:\n${r.brief || '(không có — tự đánh giá theo checklist SEO)'}\n${r.keyword ? `Từ khoá chính: ${r.keyword}\n` : ''}${r.postId ? `ID bài viết trên website: ${r.postId} (điểm và lỗi SEO của bài nằm ở mục dữ liệu bên trên)\n` : 'Bài chưa lưu — chưa có trong kho đồng bộ.\n'}`);
+    parts.push(`## Yêu cầu: TỐI ƯU BÀI CÓ SẴN\nPhạm vi: ${SCOPES[r.scope]}${r.type !== 'post' ? ' (trang bán hàng: không trả TEN, MO_TA)' : ''}\nGợi ý của quản trị viên:\n${r.brief || '(không có — tự đánh giá theo checklist SEO)'}\n${r.keyword ? `Từ khoá chính: ${r.keyword}\n` : ''}${r.postId ? `ID bài viết trên website: ${r.postId} (điểm và lỗi SEO của bài nằm ở mục dữ liệu bên trên)\n` : 'Bài chưa lưu — chưa có trong kho đồng bộ.\n'}`);
     const c = r.cur;
     parts.push(`### Bài hiện tại (nguồn sự thật — giữ nguyên ảnh, bảng, liên kết, mọi con số)\nTEN: ${c.ten}\nMO_TA: ${c.mo_ta}\nTITLE: ${c.title}\nDES: ${c.des}\nKEYWORD: ${c.keyword}\nNOI_DUNG (HTML):\n${c.noi_dung}`);
+  }
+  if (r.type !== 'post') {
+    const prod = r.type === 'product';
+    const others = Object.entries(r.others).filter(([k, v]) => k !== r.target && plainText(v)).map(([k, v]) => `- ${TARGETS[k]}: ${clip(plainText(v), 1800)}`).join('\n');
+    parts.push(`## Loại trang: ${TYPES[r.type]} — trường đích: ${TARGETS[r.target]}\n` +
+      `Đây là trang BÁN HÀNG, không phải bài tin tức: chỉ trả các mục NOI_DUNG (cho trường đích), TITLE, DES, KEYWORD, GHI_CHU — KHÔNG trả TEN, MO_TA (tên và đường dẫn giữ nguyên).\n` +
+      `- TUYỆT ĐỐI không bịa / đổi / thêm con số giá, ưu đãi, thời hạn, chính sách, số khách, số phòng, diện tích. Con số chỉ lấy từ dữ kiện chỉ đọc hoặc từ nội dung hiện có; không chắc → bỏ, không viết. Không chèn con số giá mới vào nội dung.\n` +
+      (prod ? `- Sản phẩm: \`noi_dung\` là bảng giá / thông tin ngắn (không viết ở đây), \`noi_dung_1\` là bài chi tiết hiện dưới trang, \`mo_ta\` là mô tả ngắn đầu trang. Viết đúng vai trò của trường đích; có thể thêm mục hỏi đáp (H2 + câu hỏi H3) chỉ từ dữ kiện có sẵn.\n- Liên kết nội bộ: tới danh mục điểm đến / sản phẩm cùng khu vực có thật trong danh mục trang.\n` :
+        `- Danh mục: \`mo_ta\` là đoạn mở đầu ngắn đầu trang (60–120 từ, 1–2 đoạn <p>); \`noi_dung\` là bài SEO cuối trang (giới thiệu điểm đến / nhóm sản phẩm, gợi ý chọn, liên kết xuống các sản phẩm thuộc danh mục có thật).\n`) +
+      (r.target === 'mo_ta' ? '- Trường đích là MÔ TẢ NGẮN: chỉ 60–120 từ, 1–2 đoạn <p>, không H2, bỏ qua độ dài ở trên.\n' : '') +
+      (others ? `\nNội dung các trường khác của trang này (chỉ để đối chiếu dữ kiện, KHÔNG viết lại, KHÔNG đổi):\n${others}` : ''));
   }
   parts.push('Bắt đầu: mọi dữ liệu cần thiết đã có ở trên, KHÔNG mở file / chạy lệnh. Trả lời ngay ĐÚNG định dạng các mục ===TÊN=== ở trên, không thêm lời dẫn.');
   return parts.join('\n\n');
