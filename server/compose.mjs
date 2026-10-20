@@ -29,6 +29,10 @@ export function normalizeCompose(b) {
     type: TYPES[b.type] ? b.type : 'post',
     target: TARGETS[b.target] ? b.target : 'noi_dung',
     postId: Number(b.itemId || b.postId) > 0 ? Number(b.itemId || b.postId) : 0,
+    images: {
+      featured: b.images?.featured && typeof b.images.featured === 'object' ? { name: clip(b.images.featured.name, 100), file: clip(b.images.featured.file, 200), url: clip(b.images.featured.url, 500) } : null,
+      inline: (Array.isArray(b.images?.inline) ? b.images.inline : []).slice(0, 8).map((x) => ({ name: clip(x?.name, 100), url: clip(x?.url, 500), alt: clip(x?.alt, 160).trim() })),
+    },
     others: Object.fromEntries(Object.entries(b.others && typeof b.others === 'object' ? b.others : {}).filter(([k]) => TARGETS[k]).map(([k, v]) => [k, clip(v, 20000)])),
     cur: { ten: clip(b.cur?.ten, 300), mo_ta: clip(b.cur?.mo_ta, 2000), noi_dung: clip(b.cur?.noi_dung, 300000),
            title: clip(b.cur?.title, 300), des: clip(b.cur?.des, 600), keyword: clip(b.cur?.keyword, 500) },
@@ -105,6 +109,26 @@ export async function buildContextBlock(ws, r) {
   return parts.join('\n\n');
 }
 
+/** Chỉ nhận ảnh nằm trong img_data/images của chính website (origin khai báo ở sites.json) */
+function safeImages(site, imgs) {
+  const origins = (site.allowedOrigins || []).map((o) => o.replace(/\/$/, ''));
+  const ok = (u) => origins.some((o) => u.startsWith(`${o}/`)) && /\/img_data\/images\/[^?#"'<>\s]+\.(?:jpe?g|png|webp|gif)$/i.test(u);
+  return { featured: imgs.featured && ok(imgs.featured.url) ? imgs.featured : null, inline: imgs.inline.filter((x) => ok(x.url)) };
+}
+
+function imagesBlock(im, r) {
+  if (!im.inline.length && !im.featured) return '';
+  const out = ['## Hình ảnh quản trị viên đã tải lên (đã nằm sẵn trên website — dùng đúng đường dẫn, không đổi)'];
+  if (im.featured) out.push(`Ảnh đại diện: ${im.featured.name} — hệ thống tự gán vào ô Hình ảnh; KHÔNG chèn vào thân bài.`);
+  if (im.inline.length) {
+    out.push(`Ảnh dùng trong nội dung — chèn ĐỦ ${im.inline.length} ảnh, mỗi ảnh một đoạn riêng, đặt ở chỗ hợp lý (sau đoạn nói về nội dung đó; không đặt trước đoạn mở đầu):`);
+    im.inline.forEach((x, i) => out.push(`${i + 1}. URL: ${x.url} — tên gốc: ${x.name}${x.alt ? ` — quản trị viên mô tả ảnh: "${x.alt}"` : ' — (không có mô tả)'}`));
+    out.push('Cách chèn: `<p><img src="URL" alt="mô tả ngắn"></p>`. Bạn KHÔNG xem được nội dung ảnh: alt chỉ dựa vào mô tả của quản trị viên và chủ đề đoạn đó (không có mô tả thì dùng alt trung tính theo chủ đề bài, đừng đoán cảnh vật). Không bịa URL; ảnh nào không hợp thì vẫn chèn ở cuối mục gần nhất và nêu trong GHI_CHU.');
+    if (r.mode === 'optimize') out.push('Bài đang tối ưu đã có ảnh riêng: GIỮ NGUYÊN các ảnh cũ, chỉ thêm các ảnh mới ở trên.');
+  }
+  return out.join('\n');
+}
+
 export async function buildComposePrompt(site, workspace, r) {
   const tpl = await readFile(path.join(ROOT, 'agent', 'compose-prompt.md'), 'utf8');
   const parts = [tpl.replaceAll('{{SITE_NAME}}', site.name || 'website'), await buildContextBlock(workspace, r)];
@@ -127,6 +151,8 @@ export async function buildComposePrompt(site, workspace, r) {
       (r.target === 'mo_ta' ? '- Trường đích là MÔ TẢ NGẮN: chỉ 60–120 từ, 1–2 đoạn <p>, không H2, bỏ qua độ dài ở trên.\n' : '') +
       (others ? `\nNội dung các trường khác của trang này (chỉ để đối chiếu dữ kiện, KHÔNG viết lại, KHÔNG đổi):\n${others}` : ''));
   }
+  const imBlock = imagesBlock(safeImages(site, r.images), { mode: r.mode });
+  if (imBlock) parts.push(imBlock);
   parts.push('Bắt đầu: mọi dữ liệu cần thiết đã có ở trên, KHÔNG mở file / chạy lệnh. Trả lời ngay ĐÚNG định dạng các mục ===TÊN=== ở trên, không thêm lời dẫn.');
   return parts.join('\n\n');
 }
