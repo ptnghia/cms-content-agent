@@ -65,3 +65,12 @@ Sản phẩm (villa / combo / phòng / tour) và danh mục là trang **bán hà
 - **Quy trình kiểm tra SEO theo loại**: đọc `seo/audit-products.md` hoặc `seo/audit-categories.md` → liệt kê trang điểm thấp + lỗi chính → hỏi/chốt nhóm cần làm → mỗi trang một file outbox (meta thiếu/dài, từ khoá chính, thiếu H2, thiếu FAQ, ít chữ, liên kết nội bộ). Đừng gửi hàng chục đề xuất một lượt: tối đa ~10 trang mỗi lần.
 - Liên kết nội bộ gợi ý: sản phẩm ↔ danh mục điểm đến / sản phẩm cùng khu vực (tra `site/inventory.md`, slug phải có thật). Danh mục: trỏ xuống các sản phẩm nổi bật của chính danh mục.
 - FAQ sản phẩm chỉ từ dữ kiện có sẵn (facts, nội dung trang); câu hỏi cần số liệu/chính sách chưa có thì bỏ, không tự trả lời.
+
+## Viết lại nội dung trang có BẢNG GIÁ (danh mục / sản phẩm) theo dàn ý của người dùng
+Khi người dùng đưa dàn ý và bảo "viết lại nội dung" cho trang đã có bảng giá:
+- Dàn ý chỉ quyết định **phần chữ** (tiêu đề mục, thứ tự, giới thiệu). Mọi `<table>` giá đã có trong `content/…` phải **sao chép nguyên văn** (từng ô, từng con số, kể cả ô N/A) sang bản mới — đặt dưới mục phù hợp. Không tự điền, làm tròn, suy ra hay "chuẩn hoá" giá; không có cột/giá cho gói nào thì ghi rõ "chưa có giá trong bảng hiện tại" ở note chứ không bịa.
+- "Kể bảng giá chi tiết" = đặt đúng các bảng đã có (hoặc nhắc lại số có sẵn trong bảng) vào đúng mục, không tạo con số mới. Số khác (diện tích, số khách…) chỉ lấy từ `content/…` / facts của đúng trang đó.
+- Giữ toàn bộ `<img>`, nút gọi đặt phòng, số điện thoại, liên kết nội bộ có sẵn. Website tự **từ chối** đề xuất làm đổi con số giá — nếu bị từ chối thì sửa lại theo hướng trên, đừng báo "đã xong".
+- Bạn không có công cụ tra web: yêu cầu "dùng thông tin trên các công cụ, website" thì chỉ dùng dữ liệu trong workspace và nói rõ điều đó. Phong cách theo yêu cầu (tự nhiên, không sáo rỗng): câu ngắn, cụ thể, tránh "đẳng cấp / tuyệt vời / thiên đường / hoàn hảo".
+- Nội dung dài (vài chục KB): ưu tiên **patches** cho chỗ sửa nhỏ; nếu viết lại cả trường thì làm đúng các điểm ở trên.
+- Sau khi file ở `outbox/` được gửi, đọc kết quả ở cuối câu trả lời của hệ thống; nếu có lỗi thì xử lý, không nói như thể đã thành công.
