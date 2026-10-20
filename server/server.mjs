@@ -156,6 +156,11 @@ async function handleChat(req, res) {
       const nudge = 'Bạn không được phép chạy lệnh hay gọi mạng. Hãy trả lời yêu cầu vừa rồi chỉ bằng cách đọc file trong workspace (ưu tiên posts/stats.md) và ngữ cảnh hội thoại.';
       ({ out } = await run(conv.agyConversationId || undefined, nudge));
     }
+    if (!out.response.trim() && !out.denied.length && out.status !== 'CANCELLED' && !ac.signal.aborted && conv.agyConversationId) {
+      // Agent chạy xong nhưng không viết câu trả lời nào → nhắc tóm tắt kết quả (một lần) thay vì báo lỗi ngay
+      send({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
+      ({ out } = await run(conv.agyConversationId, 'Bạn chưa trả lời. Hãy trả lời người dùng ngay: tóm tắt đã làm gì (file nào đã ghi trong outbox/ nếu có), thay đổi chính và điều cần lưu ý. Nếu chưa làm được việc được giao thì nói rõ lý do.'));
+    }
     if (out.status === 'CANCELLED') {
       conv.messages.push({ role: 'assistant', content: out.response, aborted: true, at: new Date().toISOString() });
     } else {
@@ -167,7 +172,20 @@ async function handleChat(req, res) {
         send({ type: 'delta', text: content });
       }
       // Đề xuất agent vừa ghi vào outbox/ → gửi lên website (hàng chờ duyệt), báo lại trong khung chat
-      const sent = await processOutbox(siteId, site, workspace, conv.id).catch((e) => [{ file: 'outbox', ok: false, error: e.message }]);
+      let sent = await processOutbox(siteId, site, workspace, conv.id).catch((e) => [{ file: 'outbox', ok: false, error: e.message }]);
+      const failed = sent.filter((x) => !x.ok && x.error && x.file !== 'outbox');
+      if (failed.length && conv.agyConversationId && !ac.signal.aborted) {
+        // Website từ chối (vd đổi số giá) → đưa lỗi lại cho agent sửa file outbox/ một lần rồi gửi lại
+        send({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
+        try {
+          const fix = 'Website đã TỪ CHỐI các đề xuất sau. Sửa lại theo đúng lý do (giữ nguyên mọi con số giá trong bảng, copy nguyên văn các <table>), ghi file mới vào outbox/ rồi trả lời ngắn gọn đã sửa gì:\n' +
+            failed.map((f) => `- ${f.file}: ${f.error}${f.warnings?.length ? ' (' + f.warnings.slice(0, 3).join('; ') + ')' : ''}`).join('\n');
+          const r2 = await run(conv.agyConversationId, fix);
+          const sent2 = await processOutbox(siteId, site, workspace, conv.id).catch((e) => [{ file: 'outbox', ok: false, error: e.message }]);
+          if (r2.out.response.trim()) { content += '\n\n' + r2.out.response; send({ type: 'delta', text: '\n\n' + r2.out.response }); }
+          if (sent2.length) sent = [...sent.filter((x) => x.ok), ...sent2];   // agent không ghi file mới → giữ nguyên kết quả bị từ chối để báo đúng
+        } catch { /* giữ kết quả lần đầu */ }
+      }
       if (sent.length) {
         const note = outboxSummary(sent);
         content += note;
