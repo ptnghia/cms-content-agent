@@ -37,6 +37,7 @@ export function loadSites() {
   for (const [id, s] of Object.entries(sites)) {
     if (!/^[a-z0-9_-]{1,40}$/i.test(id)) throw new Error(`siteId không hợp lệ: ${id}`);
     if (!s.tokenSecret || s.tokenSecret.length < 16) throw new Error(`site "${id}": tokenSecret quá ngắn`);
+    if (s.translationOf && (!sites[s.translationOf] || s.translationOf === id)) throw new Error(`site "${id}": translationOf "${s.translationOf}" không tồn tại`);
   }
   return sites;
 }

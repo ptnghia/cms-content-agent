@@ -2,7 +2,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runTurn } from './agy-client.mjs';
+import { runTurn } from './index.mjs';
 
 const cwd = mkdtempSync(path.join(tmpdir(), 'agy-smoke-'));
 const onEvent = (ev) => {

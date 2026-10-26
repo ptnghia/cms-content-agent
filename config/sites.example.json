@@ -2,6 +2,8 @@
   "main": {
     "name": "Website của tôi",
     "language": "vi",
+    "languages": ["vi", "en"],
+    "_translationOf": "(chỉ cho site là BẢN DỊCH của site khác: id site gốc, vd \"main\")",
     "tokenSecret": "ĐỔI-THÀNH-CHUỖI-NGẪU-NHIÊN-DÀI (openssl rand -hex 32)",
     "allowedOrigins": ["https://admin.example.com"],
     "api": {
