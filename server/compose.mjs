@@ -3,6 +3,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './config.mjs';
+import { skillsComposeBlock } from './skills.mjs';
 
 const LENGTHS = { ngan: 'khoảng 600–800 từ', vua: 'khoảng 1000–1300 từ', dai: 'khoảng 1500–2000 từ' };
 const SCOPES = {
@@ -153,6 +154,8 @@ export async function buildComposePrompt(site, workspace, r) {
   }
   const imBlock = imagesBlock(safeImages(site, r.images), { mode: r.mode });
   if (imBlock) parts.push(imBlock);
+  const skillsBlock = await skillsComposeBlock(site, [r.mode, ...(r.type !== 'post' ? ['sales'] : [])]);
+  if (skillsBlock) parts.push(skillsBlock);
   parts.push('Bắt đầu: mọi dữ liệu cần thiết đã có ở trên, KHÔNG mở file / chạy lệnh. Trả lời ngay ĐÚNG định dạng các mục ===TÊN=== ở trên, không thêm lời dẫn.');
   return parts.join('\n\n');
 }

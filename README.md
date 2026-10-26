@@ -39,3 +39,10 @@ Không cần `npm install`.
 
 ## Tài liệu
 [docs/PLAN.md](docs/PLAN.md) · [docs/SITE_API.md](docs/SITE_API.md) · [docs/DEPLOY.md](docs/DEPLOY.md)
+
+## Agent CLI (agy / codex) và skill
+
+- `AGENT_BACKEND=agy|codex` chọn CLI chính; `AGENT_FALLBACK=codex` bật dự phòng: nếu CLI chính lỗi (không chạy được, thoát lỗi, quá giờ) lượt đó chạy lại bằng CLI dự phòng, và trong `AGENT_FALLBACK_COOLDOWN_SEC` giây các lượt mới dùng dự phòng trước. Hội thoại luôn nối tiếp đúng CLI đã tạo ra nó (id lưu dạng `codex:<id>`); nếu CLI đó lỗi, hội thoại được dựng lại từ lịch sử. Không chuyển CLI khi đã stream chữ cho người dùng.
+- Codex cần `codex login` và model tài khoản có quyền dùng (`CODEX_MODEL`, xem `codex debug models`). Codex không stream từng token.
+- `skills/<tên>/SKILL.md` (front-matter `name`, `description`, `compose`) dùng chung cho cả hai CLI: chat nhận mục lục + đường dẫn để agent tự đọc; `/api/compose` nhúng sẵn các skill có `compose: new|optimize|sales` hợp chế độ. Giới hạn skill theo site bằng `"skills": ["seo-onpage", ...]` trong `config/sites.json`. Thêm skill = thêm thư mục, không cần sửa mã.
+- Website đa ngôn ngữ chạy mỗi ngôn ngữ là một site agent (vd. `shop` + `shop-en`, cùng ID trang, `api.base` có `/api/en/agent`): đặt `"translationOf": "<id site gốc>"` ở site bản dịch. Chat của site đó được chỉ tới workspace bản gốc (chỉ đọc) để skill `content-translation` đọc bản tiếng Việt và ghi đề xuất `update` cùng ID vào `outbox/` của chính nó.

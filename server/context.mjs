@@ -4,6 +4,7 @@ import path from 'node:path';
 import { ROOT } from './config.mjs';
 import { readSyncStatus } from './sync.mjs';
 import { hasFeature } from './content-sync.mjs';
+import { skillsIndexBlock } from './skills.mjs';
 
 const HISTORY_MAX_MESSAGES = 20;
 const HISTORY_MAX_CHARS = 1500;
@@ -26,17 +27,21 @@ async function listTree(ws, rel = '', depth = 0, out = []) {
   return out;
 }
 
-export async function buildFreshPrompt({ site, workspace, history, message }) {
+export async function buildFreshPrompt({ site, workspace, history, message, sourceWorkspace, sourceName }) {
   let tpl = await readFile(path.join(ROOT, 'agent', 'system-prompt.md'), 'utf8');
   // Site bật đồng bộ nội dung + đề xuất (api.features) → thêm hướng dẫn tối ưu bài cũ / viết bài mới qua outbox
   if (hasFeature(site, 'proposals') || hasFeature(site, 'content')) {
     tpl += '\n' + await readFile(path.join(ROOT, 'agent', 'system-prompt-content.md'), 'utf8');
   }
+  if (sourceWorkspace) {
+    // Site này là BẢN DỊCH của site khác (cùng website, ngôn ngữ khác): trỏ tới workspace bản gốc để dịch
+    tpl += `\n## Bản gốc để dịch (chỉ đọc, KHÔNG ghi vào đây)\nWebsite này có bản gốc "${sourceName || 'site gốc'}" với workspace: ${sourceWorkspace}\nMỗi trang có **cùng ID** ở hai bên: bản gốc ở \`${sourceWorkspace}/content/<loại>/<id>.md\`, bản của bạn ở \`content/<loại>/<id>.md\`. Khi được yêu cầu dịch / cập nhật bản dịch, đọc bản gốc, dịch theo skill \`content-translation\`, rồi ghi đề xuất \`action: update\` với cùng \`id\` vào \`outbox/\` của workspace này (cập nhật bản dịch hiện có, không tạo trang mới).\n`;
+  }
   const status = await readSyncStatus(workspace);
   const files = await listTree(workspace);
   const system = tpl
     .replaceAll('{{SITE_NAME}}', site.name || 'website')
-    .replaceAll('{{LANGUAGE}}', site.language || 'vi')
+    .replaceAll('{{LANGUAGE}}', (site.language || 'vi') + (Array.isArray(site.languages) && site.languages.length ? `; website đa ngôn ngữ, các ngôn ngữ: ${site.languages.join(', ')} — dùng skill content-translation khi cần dịch` : ''))
     .replaceAll('{{SYNC_STATUS}}', status ? `(${status.count} bài, đồng bộ lúc ${status.syncedAt})` : '(CHƯA đồng bộ)')
     .replaceAll('{{WORKSPACE_LISTING}}', files.length ? files.map((f) => `- ${f}`).join('\n') : '(workspace trống)');
 
@@ -45,5 +50,5 @@ export async function buildFreshPrompt({ site, workspace, history, message }) {
     ? '\n\n## Lịch sử hội thoại trước đó (để bạn nắm ngữ cảnh)\n' +
       recent.map((m) => `**${m.role === 'user' ? 'Người dùng' : 'Trợ lý'}:** ${String(m.content).slice(0, HISTORY_MAX_CHARS)}`).join('\n\n')
     : '';
-  return `${system}${transcript}\n\n---\nYêu cầu mới của người dùng:\n${message}`;
+  return `${system}${await skillsIndexBlock(site)}${transcript}\n\n---\nYêu cầu mới của người dùng:\n${message}`;
 }

@@ -7,8 +7,9 @@ import { verifyToken, signToken } from './auth.mjs';
 import * as store from './store.mjs';
 import { buildFreshPrompt } from './context.mjs';
 import { syncPosts, readSyncStatus } from './sync.mjs';
-import { runTurn } from '../bridge/agy-client.mjs';
+import { runTurn } from '../bridge/index.mjs';
 import { processOutbox, outboxSummary } from './outbox.mjs';
+import { SKILLS_DIR } from './skills.mjs';
 import { normalizeCompose, buildComposePrompt, parseComposeResponse } from './compose.mjs';
 
 const sites = loadSites();
@@ -108,6 +109,8 @@ async function handleChat(req, res) {
   res.on('close', () => ac.abort());
 
   const workspace = await store.ensureWorkspace(siteId);
+  const srcId = site.translationOf;
+  const sourceWorkspace = srcId && sites[srcId] ? await store.ensureWorkspace(srcId) : null;
   const historyBefore = conv.messages.slice();
   conv.messages.push({ role: 'user', content: message, at: new Date().toISOString() });
   if (!conv.title) conv.title = message.slice(0, 60);
@@ -118,11 +121,11 @@ async function handleChat(req, res) {
     let sawOutput = false;
     const prompt = agyConversationId
       ? text
-      : await buildFreshPrompt({ site, workspace, history: historyBefore, message });
+      : await buildFreshPrompt({ site, workspace, history: historyBefore, message, sourceWorkspace, sourceName: srcId });
     const out = await runTurn({
       prompt,
       cwd: workspace,
-      addDirs: [KNOWLEDGE_DIR],
+      addDirs: [KNOWLEDGE_DIR, SKILLS_DIR, ...(sourceWorkspace ? [sourceWorkspace] : [])],
       agyConversationId,
       signal: ac.signal,
       onEvent: (ev) => {
@@ -238,7 +241,7 @@ async function handleCompose(req, res) {
     let chars = 0;
     let agyId;
     const turn = (text, resume) => runTurn({
-      prompt: text, cwd: workspace, addDirs: [KNOWLEDGE_DIR], signal: ac.signal, agyConversationId: resume,
+      prompt: text, cwd: workspace, addDirs: [KNOWLEDGE_DIR, SKILLS_DIR], signal: ac.signal, agyConversationId: resume,
       onEvent: (ev) => {
         if (ev.type === 'init') agyId = ev.agyConversationId;
         else if (ev.type === 'delta') { chars += ev.text.length; send({ type: 'progress', chars }); }
