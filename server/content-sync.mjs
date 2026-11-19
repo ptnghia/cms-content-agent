@@ -55,14 +55,17 @@ function contentFile(item, blocks) {
   return `---\n${fm.join('\n')}\n---\n\n${body || '(không có nội dung)\n'}`;
 }
 
-/** Dữ kiện CHỈ ĐỌC của sản phẩm (thông số, gói giá, khuyến mãi) — để viết đúng, không được đổi */
+/** READ-ONLY product facts (specs, price options, promotions, policies…) — the agent writes from them, never changes them.
+ *  Rendered generically: scalars as "key: value", arrays as one bullet per item, objects as "k: v; k2: v2". */
+const factValue = (v) => (v && typeof v === 'object'
+  ? Object.entries(v).filter(([, x]) => x !== null && x !== undefined && x !== '').map(([k, x]) => `${k}: ${typeof x === 'object' ? JSON.stringify(x) : x}`).join('; ')
+  : String(v));
 const factsText = (f) => {
   if (!f || typeof f !== 'object' || !Object.keys(f).length) return '';
   const lines = [];
   for (const [k, v] of Object.entries(f)) {
-    if (k === 'tuy_chon_gia') lines.push(...v.map((o) => `- Gói/tuỳ chọn: ${o.ten} — ${o.gia} đ / ${o.don_vi || '?'}${o.khuyen_mai ? ` (KM ${o.khuyen_mai})` : ''}`));
-    else if (k === 'khuyen_mai') lines.push(`- Khuyến mãi: ${v.gia_khuyen_mai} đ${v.ten_chuong_trinh ? ' — ' + v.ten_chuong_trinh : ''}`);
-    else lines.push(`- ${k}: ${String(v).replace(/\s+/g, ' ').slice(0, 300)}`);
+    if (Array.isArray(v)) lines.push(...v.map((o) => `- ${k}: ${factValue(o).replace(/\s+/g, ' ').slice(0, 300)}`));
+    else lines.push(`- ${k}: ${factValue(v).replace(/\s+/g, ' ').slice(0, 300)}`);
   }
   return '(CHỈ ĐỌC — nguồn sự thật cho con số/chính sách; không đổi, không bịa thêm)\n' + lines.join('\n');
 };
@@ -92,7 +95,7 @@ export async function syncExtended(site, ws, postsWithContent) {
   const all = [...postsWithContent.map((p) => ({ ...p, kind: p.kind || 'post' }))];
 
   if (hasFeature(site, 'content')) {
-    await writeCollection(ws, 'posts', postsWithContent, (p) => [['Mô tả ngắn (mo_ta)', p.excerpt], ['Nội dung (noi_dung)', p.content_html]]);
+    await writeCollection(ws, 'posts', postsWithContent, (p) => [['Mô tả ngắn (excerpt)', p.excerpt], ['Nội dung (body)', p.content_html]]);
     report.content = postsWithContent.length;
   }
   if (hasFeature(site, 'products')) {
@@ -101,8 +104,8 @@ export async function syncExtended(site, ws, postsWithContent) {
     await atomicWrite(path.join(ws, 'products', 'index.md'),
       indexTable('Sản phẩm', items, [['Loại', (p) => p.type], ['Danh mục', (p) => p.category], ['Giá (chỉ xem)', (p) => p.price]]));
     if (hasFeature(site, 'content')) {
-      await writeCollection(ws, 'products', items, (p) => [['Mô tả ngắn (mo_ta)', p.excerpt], ['Chi tiết / bảng giá (noi_dung)', p.content_html],
-        ['Bài viết chi tiết (noi_dung_1)', p.article_html], ['Hỏi đáp (thong_so_kt)', faqText(p.faq)], ['Dữ kiện chỉ đọc (facts)', factsText(p.facts)]]);
+      await writeCollection(ws, 'products', items, (p) => [['Mô tả ngắn (excerpt)', p.excerpt], ['Thông tin chính / bảng giá (body)', p.content_html],
+        ['Bài viết chi tiết (body_extra)', p.article_html], ['Hỏi đáp (faq)', faqText(p.faq)], ['Dữ kiện chỉ đọc (facts)', factsText(p.facts)]]);
     }
     report.products = items.length;
   }
@@ -110,10 +113,10 @@ export async function syncExtended(site, ws, postsWithContent) {
     const items = await getAll(site, '/categories', hasFeature(site, 'content'));
     all.push(...items);
     await atomicWrite(path.join(ws, 'categories', 'index.md'),
-      indexTable('Danh mục', items, [['Module', (c) => c.module], ['Cha', (c) => c.parent_id ?? '']]));
+      indexTable('Danh mục', items, [['Loại', (c) => c.module ?? c.type ?? ''], ['Cha', (c) => c.parent_id ?? '']]));
     if (hasFeature(site, 'content')) {
-      await writeCollection(ws, 'categories', items, (c) => [['Mô tả ngắn (mo_ta)', c.excerpt_html], ['Nội dung (noi_dung)', c.content_html],
-        ['Hỏi đáp (thong_so_kt)', faqText(c.faq)]]);
+      await writeCollection(ws, 'categories', items, (c) => [['Mô tả ngắn (excerpt)', c.excerpt_html], ['Nội dung (body)', c.content_html],
+        ['Hỏi đáp (faq)', faqText(c.faq)]]);
     }
     report.categories = items.length;
   }
@@ -174,7 +177,7 @@ export async function syncExtended(site, ws, postsWithContent) {
 /** outbox/STATUS.md — đề xuất đã gửi + trạng thái duyệt (để agent không gửi trùng) */
 export async function writeProposalStatus(site, ws) {
   const d = await apiGet(site, '/proposals');
-  const label = { cho_duyet: 'chờ duyệt', da_ap_dung: 'ĐÃ ÁP DỤNG', tu_choi: 'bị từ chối', hoan_tac: 'đã hoàn tác' };
+  const label = { pending: 'chờ duyệt', applied: 'ĐÃ ÁP DỤNG', rejected: 'bị từ chối', reverted: 'đã hoàn tác' };   // see docs/SITE_API.md
   const rows = (d.items || []).map((p) => [p.id, p.action, p.type, p.target_id ?? '(mới)', p.title, label[p.status] || p.status, (p.fields || []).join(', '), p.created_at?.slice(0, 10)].map(cell).join(' | '));
   await atomicWrite(path.join(ws, 'outbox', 'STATUS.md'),
     `# Đề xuất đã gửi lên website (${rows.length} gần nhất)\n\nĐừng gửi lại đề xuất đang "chờ duyệt" cho cùng trang; "bị từ chối" thì hỏi lại người dùng lý do trước khi làm lại.\n\n` +

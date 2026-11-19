@@ -114,11 +114,17 @@ preferred for `AGENT_FALLBACK_COOLDOWN_SEC`. Text that was already streamed is n
       "key": "<site API key>",
       "features": ["content", "products", "categories", "keywords", "seo", "proposals"]   // optional
     },
+    "fieldMap": { "body": "content", "meta_title": "seo_title" },   // optional: your CMS column names
+    "mediaOrigins": ["https://cdn.example.com"],     // optional: where uploaded images live (default: allowedOrigins)
     "skills": ["seo-onpage", "content-writing"],     // optional: limit skills for this site
     "translationOf": "main-vi"                       // optional: this site is a translation of another
   }
 }
 ```
+
+The agent always uses **canonical field names** (`name`, `excerpt`, `body`, `body_extra`, `faq`, `meta_title`,
+`meta_description`, `meta_keywords`, …). `fieldMap` renames them to your CMS columns when proposals are sent and
+compose results are returned. See [docs/SITE_API.md](docs/SITE_API.md).
 
 **Environment** (`.env`): see [.env.example](.env.example) for every option. The main ones:
 
