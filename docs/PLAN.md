@@ -11,7 +11,7 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [x] Workspace theo site: `posts/`, `plans/`, `drafts/`, `knowledge/`, `notes.md`
 - [x] Đồng bộ bài viết qua API website (phân trang) + `posts/stats.md` tính sẵn
 - [x] Widget Shadow DOM (floating / inline), markdown an toàn, Dừng, Hội thoại mới, nút Đồng bộ, khôi phục lịch sử
-- [x] Mẫu PHP: `ContentAgent.php`, `token.php`, `embed-example.php`; tài liệu `SITE_API.md`, `DEPLOY.md`
+- [x] Tích hợp website (nay là plugin WordPress), tài liệu `SITE_API.md`, `DEPLOY.md`
 - [x] Giới hạn: 1 lượt/hội thoại, `MAX_CONCURRENT` lượt toàn máy, độ dài tin nhắn
 
 **Phát hiện kỹ thuật:** agy headless ghi file được nhưng **tự từ chối chạy lệnh** (phản hồi rỗng, vẫn `SUCCESS`).
@@ -47,10 +47,19 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [x] Giới hạn quyền ghi: dữ liệu đồng bộ và sổ sách outbox chỉ-đọc giữa các lần đồng bộ (`WORKSPACE_LOCK`)
 - [x] Adapter Claude Code; tắt công cụ shell/mạng mặc định cho mọi CLI
 
-## Giai đoạn 6 — Mở rộng cho cộng đồng (đang mở, xem issues)
+## Giai đoạn 6 — Dịch vụ cho WordPress (XONG, v0.4.0)
+- [x] Plugin WordPress `content-agent`: REST API đồng bộ (bài, trang, chuyên mục, WooCommerce), kiểm tra SEO, `/schema`
+- [x] Hàng chờ đề xuất trong wp-admin: diff, áp dụng / từ chối có lý do / hoàn tác; bài mới luôn là nháp; HTML → block Gutenberg
+- [x] Yoast SEO, Rank Math hoặc trường SEO riêng; chặn đề xuất làm đổi con số trên sản phẩm / danh mục
+- [x] Widget chat nhúng sẵn trong wp-admin (token qua admin-ajax, ảnh vào thư viện media); thanh bên "Viết bằng AI" trong Gutenberg
+- [x] Giao diện tiếng Anh + tiếng Việt
+
+## Giai đoạn 7 — Mở rộng (đang mở, xem issues)
+- [ ] Phát hành plugin lên wordpress.org (WP coding standards, Plugin Check)
+- [ ] Hỗ trợ trình soạn thảo cổ điển và trang sản phẩm WooCommerce cho "Viết bằng AI"
+- [ ] FAQ có cấu trúc (schema FAQPage) cho sản phẩm / trang
 - [ ] Quốc tế hoá: prompt, skill và chuỗi giao diện widget theo `site.language` (hiện chỉ có tiếng Việt)
-- [ ] Panel trong widget: xem `plans/`, `drafts/`, đề xuất đang chờ duyệt, usage
-- [ ] Endpoint mẫu phía website cho WordPress (plugin) và Laravel, ngoài mẫu PHP thuần
+- [ ] Panel trong widget: xem `plans/`, `drafts/`, usage
 - [ ] Kết nối Google Search Console → `seo/queries.md`
 - [ ] Giới hạn tần suất dùng chung khi chạy nhiều instance (SQLite / Redis)
 - [ ] Ngân sách chi phí theo site (chặn khi vượt `costUsd` tháng)

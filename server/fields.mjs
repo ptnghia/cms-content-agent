@@ -20,6 +20,7 @@ export const FIELDS = ['name', 'excerpt', 'body', 'body_extra', 'faq', 'meta_tit
 /** Fields the agent may change, per page type. */
 export const EDITABLE = {
   post: ['name', 'excerpt', 'body', 'meta_title', 'meta_description', 'meta_keywords'],
+  page: ['name', 'excerpt', 'body', 'meta_title', 'meta_description', 'meta_keywords'],
   product: ['excerpt', 'body', 'body_extra', 'faq', 'meta_title', 'meta_description', 'meta_keywords'],
   category: ['excerpt', 'body', 'faq', 'meta_title', 'meta_description', 'meta_keywords'],
 };

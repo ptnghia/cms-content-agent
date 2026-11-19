@@ -1,7 +1,16 @@
-# Hợp đồng API của website (để backend đồng bộ dữ liệu)
+# API giữa plugin WordPress và backend
 
-Website PHP cần cung cấp các endpoint dưới đây, xác thực bằng `Authorization: Bearer <api.key>`
-(khoá khai báo trong `config/sites.json` → `api.base`, `api.key`). Chỉ cần HTTPS + đọc.
+Plugin **Content Agent** (`wordpress/content-agent/`) cung cấp toàn bộ các endpoint dưới đây tại
+`/wp-json/content-agent/v1`. Backend gọi vào với `Authorization: Bearer <api.key>`; `api.base` và `api.key` lấy từ khối
+"Backend configuration" trong trang cài đặt của plugin. Tài liệu này dành cho người phát triển plugin, hoặc cho ai muốn
+nối backend với một hệ thống khác WordPress.
+
+| Endpoint (plugin) | Mã nguồn |
+|---|---|
+| `GET /posts` (bài viết **và trang**, `kind: post\|page`), `/products`, `/categories` | `includes/class-content.php` |
+| `GET /seo` | `includes/class-audit.php` |
+| `GET /keywords`, `GET /schema`, `GET /ping` | `includes/class-rest.php` |
+| `GET/POST /proposals` | `includes/class-proposals.php` |
 
 ## GET {base}/posts?page=1&per_page=100   (CÓ — đang được dùng)
 ```json
@@ -33,7 +42,8 @@ Tối đa `per_page=100`. Trả **tất cả** trạng thái (kể cả draft) �
 | (luôn khi có features) | — | `site/inventory.md` (mọi trang + từ khoá chính, để tránh viết trùng) |
 | `keywords` | `GET /keywords` → `items[{keyword, group, intent, target_slug, priority, status, monthly_searches, position}]` | `seo/keywords.md` |
 | `seo` | `GET /seo` → `{pages, avg_score, summary, rules, scores[], issues[]}` | `seo/audit.md` |
-| `proposals` | `POST /proposals` `{action: update\|create, type: post\|product\|category, id?, title, note, fields{}, source}` → `201 {data:{id,status,warnings[],review_url}}`; `GET /proposals` | đọc `outbox/*.md\|json` sau mỗi lượt chat → gửi → `outbox/sent/`, `outbox/STATUS.md` |
+| `schema` | `GET /schema` → `{cms, seo_provider, types: {<type>: {label, editable[], create[]}}, notes[]}` | `site/fields.md` (agent làm theo bảng này) |
+| `proposals` | `POST /proposals` `{action: update\|create, type: post\|page\|product\|category, id?, title, note, fields{}, patches{}, source}` → `201 {data:{id,status,warnings[],review_url}}`; `GET /proposals` | đọc `outbox/*.md\|json` sau mỗi lượt chat → gửi → `outbox/sent/`, `outbox/STATUS.md` |
 
 Mỗi mục nên có thêm: `kind`, `focus_keyword`, `seo_score`, `seo_issues[]`, `admin_url`. Website **không áp dụng** đề xuất ngay — đưa vào hàng chờ duyệt;
 lọc cột được phép, làm sạch HTML, cảnh báo trùng tiêu đề / từ khoá / bài gần giống.
@@ -47,13 +57,13 @@ Agent luôn dùng **tên trường chung** dưới đây. Nếu CSDL website đ�
 
 | Trường chung | Ý nghĩa | Loại trang |
 |---|---|---|
-| `name` | tên trang / H1 | post |
+| `name` | tên trang / H1 | post, page |
 | `excerpt` | mô tả ngắn (HTML) | post, product, category |
 | `body` | nội dung chính (HTML); với sản phẩm là bảng giá / thông tin chính | post, product, category |
 | `body_extra` | bài viết chi tiết bên dưới trang sản phẩm (HTML) | product |
 | `faq` | `[{question, answer}]` | product, category |
 | `meta_title`, `meta_description`, `meta_keywords` | SEO (từ khoá chính đứng đầu, cách nhau bằng dấu phẩy) | tất cả |
-| `slug`, `category_id`, `featured_image` | chỉ khi `action: create` | post |
+| `slug`, `category_id`, `featured_image` | chỉ khi `action: create` | post, page (`category_id` chỉ post) |
 
 ```jsonc
 "fieldMap": { "name": "title", "excerpt": "summary_html", "body": "content", "meta_title": "seo_title" }   // chỉ ghi những trường khác tên
@@ -62,8 +72,12 @@ Agent luôn dùng **tên trường chung** dưới đây. Nếu CSDL website đ�
 khớp và từ chối nếu không khớp hoặc khớp nhiều chỗ.
 
 ### Trạng thái đề xuất (`GET /proposals` → `items[].status`)
-`pending` (chờ duyệt) · `applied` (đã áp dụng) · `rejected` (bị từ chối) · `reverted` (đã hoàn tác). Giá trị khác được
-hiển thị nguyên văn cho agent.
+`pending` (chờ duyệt) · `applied` (đã áp dụng) · `rejected` (bị từ chối, kèm `reason`) · `reverted` (đã hoàn tác).
+Mỗi mục còn có `fields[]`, `target_id`, `created_at`, `review_url`.
+
+Lỗi kiểm tra trả `422 {error: {message, details[]}}` (trang không tồn tại: `404`). Backend đưa lỗi này lại cho agent sửa
+một lần. Plugin từ chối: trường không có trong `schema`, bản vá không khớp đúng một chỗ, và với sản phẩm/danh mục,
+mọi thay đổi làm mất hoặc đổi một con số (giá, thông số) đang có trên trang.
 
 ## API compose (cho plugin soạn thảo của website)
 `POST /api/compose` (Bearer token như widget) → SSE `progress {chars}`, `step`, rồi `result {mode, scope, fields, notes}` hoặc `error`.
@@ -83,15 +97,6 @@ hiển thị nguyên văn cho agent.
 `cur`, `others` và `target` nhận cả tên chung lẫn tên riêng của site (theo `fieldMap`). `result.fields` trả về theo tên
 riêng của site. Chỉ nhận ảnh có URL thuộc `mediaOrigins` của site (mặc định là `allowedOrigins`).
 
-## Dự kiến (giai đoạn sau)
-- `GET  {base}/posts/{id}` — nội dung đầy đủ (HTML/Markdown) để agent rà soát chi tiết.
-- `POST {base}/drafts` — đẩy bản nháp do agent viết lên CMS **ở trạng thái draft**, không bao giờ publish.
-- `GET  {base}/categories` — cây chuyên mục.
 
-## Gợi ý PHP tối thiểu
-```php
-$key = getenv('AGENT_API_KEY');
-if (!hash_equals($key, preg_replace('/^Bearer /', '', $_SERVER['HTTP_AUTHORIZATION'] ?? ''))) { http_response_code(401); exit; }
-```
 Thử nhanh phía backend bằng website giả lập: `npm run mock-site` (cổng 4000, key `dev-key`).
 Test tự động dùng một website giả lập đầy đủ hơn (có `/proposals`): xem `test/app.shared.mjs`.
