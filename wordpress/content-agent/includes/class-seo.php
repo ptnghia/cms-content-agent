@@ -165,7 +165,8 @@ final class Seo {
 					return;
 				}
 				if ( '' !== $meta['meta_title'] ) {
-					add_filter( 'pre_get_document_title', static fn() => $meta['meta_title'], 20 );
+					// pre_get_document_title output is printed without escaping by core.
+					add_filter( 'pre_get_document_title', static fn() => esc_html( $meta['meta_title'] ), 20 );
 				}
 				if ( '' !== $meta['meta_description'] ) {
 					add_action(

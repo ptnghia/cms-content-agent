@@ -20,7 +20,7 @@ final class Settings {
 			'token_secret'   => '',
 			'api_key'        => '',
 			'widget_enabled' => true,
-			'capability'     => 'edit_posts',
+			'capability'     => 'edit_others_posts',   // chat reads drafts and private content through the API key
 			'assistant_name' => '',
 		);
 	}

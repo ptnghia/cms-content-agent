@@ -56,6 +56,10 @@ test('claude: passes safe defaults and prompt on stdin', async () => {
   assert.deepEqual(c.args.slice(c.args.indexOf('--permission-mode'), c.args.indexOf('--permission-mode') + 2), ['--permission-mode', 'acceptEdits']);
   assert.ok(c.args.includes('Bash'), 'Bash disallowed by default');
   assert.equal(c.args[c.args.indexOf('--add-dir') + 1], '/kb');
+  // containment: no operator MCP servers / project settings, extra dirs and CLAUDE.md / .claude not writable
+  assert.ok(c.args.includes('--strict-mcp-config'));
+  assert.equal(c.args[c.args.indexOf('--setting-sources') + 1], 'user');
+  for (const r of ['Edit(//kb/**)', 'Write(//kb/**)', 'Write(./CLAUDE.md)', 'Edit(./.claude/**)']) assert.ok(c.args.includes(r), r);
 });
 
 test('claude: reports cost', async () => {

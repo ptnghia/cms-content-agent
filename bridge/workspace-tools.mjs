@@ -28,7 +28,7 @@ export const TOOL_DEFS = [
   },
   {
     name: 'search',
-    description: 'Search file contents (case-insensitive regular expression, or plain text). Returns "file:line: text" for up to 100 matches.',
+    description: 'Search file contents for plain text (case-insensitive, not a regular expression). Returns "file:line: text" for up to 100 matches.',
     input_schema: { type: 'object', properties: { pattern: { type: 'string' }, path: { type: 'string', description: 'Folder to search (default ".")' } },
       required: ['pattern'], additionalProperties: false },
   },
@@ -150,8 +150,8 @@ export function createWorkspaceTools({ cwd, addDirs = [] }) {
     },
     async search({ pattern, path: p = '.' }) {
       const abs = await resolve(p);
-      let re;
-      try { re = new RegExp(pattern, 'i'); } catch { re = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+      const needle = pattern.toLowerCase().slice(0, 500);   // literal match: a model-supplied regex could block the event loop
+      if (!needle) throw new ToolError('empty pattern');
       const files = [];
       if ((await stat(abs)).isDirectory()) await walk(abs, files); else files.push(abs);
       const hits = [];
@@ -159,7 +159,7 @@ export function createWorkspaceTools({ cwd, addDirs = [] }) {
         let text; try { text = await readFile(f, 'utf8'); } catch { continue; }
         const lines = text.split('\n');
         for (let i = 0; i < lines.length && hits.length < MAX_MATCHES; i++) {
-          if (re.test(lines[i])) hits.push(`${await show(f)}:${i + 1}: ${lines[i].slice(0, 300)}`);
+          if (lines[i].toLowerCase().includes(needle)) hits.push(`${await show(f)}:${i + 1}: ${lines[i].slice(0, 300)}`);
         }
         if (hits.length >= MAX_MATCHES) break;
       }

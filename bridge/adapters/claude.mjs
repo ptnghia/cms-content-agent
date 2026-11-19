@@ -2,6 +2,7 @@
 // Streams token deltas, resumes with --resume <session_id>, reports usage + total_cost_usd.
 // Shell and network tools are disabled by default so the agent only works on workspace files,
 // matching the other adapters.
+import path from 'node:path';
 import { runJsonLines, normalizeUsage, envNum } from '../process.mjs';
 
 export const name = 'claude';
@@ -25,6 +26,13 @@ export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent, s
     '--permission-mode', process.env.CLAUDE_PERMISSION_MODE || 'acceptEdits'];
   const disallowed = process.env.CLAUDE_DISALLOWED_TOOLS ?? DEFAULT_DISALLOWED;
   if (disallowed) args.push('--disallowedTools', ...disallowed.split(/[\s,]+/).filter(Boolean));
+  // Containment (verified with Claude Code 2.1): reads outside the working dirs are already refused; also
+  //  - no MCP servers from the operator's config, no project settings or CLAUDE.md written by the agent,
+  //  - extra dirs (knowledge, skills, a source site) are read-only, and the agent cannot create
+  //    CLAUDE.md / .claude/ in the workspace to plant instructions for later sessions.
+  args.push('--strict-mcp-config', '--setting-sources', 'user');
+  const deny = ['./CLAUDE.md', './CLAUDE.local.md', './.claude/**', ...addDirs.map((d) => `/${path.resolve(d)}/**`)];
+  args.push('--disallowedTools', ...deny.flatMap((p) => [`Edit(${p})`, `Write(${p})`]));
   if (sessionId) args.push('--resume', sessionId);
   for (const d of addDirs) args.push('--add-dir', d);
   if (process.env.CLAUDE_MODEL) args.push('--model', process.env.CLAUDE_MODEL);

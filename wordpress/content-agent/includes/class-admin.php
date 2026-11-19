@@ -11,6 +11,9 @@ defined( 'ABSPATH' ) || exit;
 
 final class Admin {
 
+	/** Who sees the review queue: proposals show other users' and private content. */
+	const QUEUE_CAP = 'edit_others_posts';
+
 	const NONCE = 'content_agent';
 
 	public static function hooks(): void {
@@ -27,8 +30,8 @@ final class Admin {
 	public static function menu(): void {
 		$pending = Proposals::count( 'pending' );
 		$bubble  = $pending ? ' <span class="awaiting-mod"><span class="pending-count">' . (int) $pending . '</span></span>' : '';
-		add_menu_page( __( 'Content Agent', 'content-agent' ), __( 'Content Agent', 'content-agent' ) . $bubble, 'edit_posts', 'content-agent', array( self::class, 'page_proposals' ), 'dashicons-format-chat', 26 );
-		add_submenu_page( 'content-agent', __( 'Proposals', 'content-agent' ), __( 'Proposals', 'content-agent' ), 'edit_posts', 'content-agent', array( self::class, 'page_proposals' ) );
+		add_menu_page( __( 'Content Agent', 'content-agent' ), __( 'Content Agent', 'content-agent' ) . $bubble, self::QUEUE_CAP, 'content-agent', array( self::class, 'page_proposals' ), 'dashicons-format-chat', 26 );
+		add_submenu_page( 'content-agent', __( 'Proposals', 'content-agent' ), __( 'Proposals', 'content-agent' ), self::QUEUE_CAP, 'content-agent', array( self::class, 'page_proposals' ) );
 		add_submenu_page( 'content-agent', __( 'Content Agent settings', 'content-agent' ), __( 'Settings', 'content-agent' ), 'manage_options', 'content-agent-settings', array( self::class, 'page_settings' ) );
 	}
 
@@ -188,8 +191,18 @@ final class Admin {
 		return '<em>' . esc_html__( 'deleted', 'content-agent' ) . '</em>';
 	}
 
+	/** The backend's widget.js runs in wp-admin: accept only https (http only for localhost). */
+	private static function backend_url( string $url ): string {
+		$u = wp_parse_url( $url );
+		if ( empty( $u['host'] ) ) {
+			return '';
+		}
+		$local = in_array( $u['host'], array( 'localhost', '127.0.0.1', '::1' ), true );
+		return ( 'https' === ( $u['scheme'] ?? '' ) || $local ) ? untrailingslashit( $url ) : '';
+	}
+
 	public static function page_proposals(): void {
-		if ( ! current_user_can( 'edit_posts' ) ) {
+		if ( ! current_user_can( self::QUEUE_CAP ) ) {
 			wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'content-agent' ) );
 		}
 		$id = isset( $_GET['proposal'] ) ? absint( $_GET['proposal'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -278,7 +291,7 @@ final class Admin {
 
 	private static function render_review( int $id ): void {
 		$p = Proposals::get( $id );
-		if ( ! $p ) {
+		if ( ! $p || ! Proposals::can_decide( $p ) ) {   // the diff shows the target's current content
 			echo '<h1>' . esc_html__( 'Proposal not found', 'content-agent' ) . '</h1>';
 			return;
 		}
@@ -470,14 +483,14 @@ final class Admin {
 		check_admin_referer( 'content_agent_settings' );
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$caps    = array( 'edit_posts', 'publish_posts', 'edit_others_posts', 'manage_options' );
-		$cap     = isset( $_POST['capability'] ) ? sanitize_key( wp_unslash( $_POST['capability'] ) ) : 'edit_posts';
+		$cap     = isset( $_POST['capability'] ) ? sanitize_key( wp_unslash( $_POST['capability'] ) ) : 'edit_others_posts';
 		$site_id = isset( $_POST['site_id'] ) ? preg_replace( '/[^A-Za-z0-9_-]/', '', wp_unslash( $_POST['site_id'] ) ) : '';
 		$changes = array(
-			'backend_url'    => isset( $_POST['backend_url'] ) ? untrailingslashit( esc_url_raw( wp_unslash( $_POST['backend_url'] ) ) ) : '',
+			'backend_url'    => isset( $_POST['backend_url'] ) ? self::backend_url( esc_url_raw( wp_unslash( $_POST['backend_url'] ) ) ) : '',
 			'site_id'        => substr( '' !== $site_id ? $site_id : Settings::default_site_id(), 0, 40 ),
 			'assistant_name' => isset( $_POST['assistant_name'] ) ? sanitize_text_field( wp_unslash( $_POST['assistant_name'] ) ) : '',
 			'widget_enabled' => ! empty( $_POST['widget_enabled'] ),
-			'capability'     => in_array( $cap, $caps, true ) ? $cap : 'edit_posts',
+			'capability'     => in_array( $cap, $caps, true ) ? $cap : 'edit_others_posts',
 		);
 		// phpcs:enable
 		if ( ! empty( $_POST['rotate'] ) || strlen( (string) Settings::get( 'token_secret' ) ) < 32 ) {

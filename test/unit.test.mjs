@@ -178,3 +178,8 @@ test('chat prompt: English instructions, content language from the site', async 
   assert.match(p, /Website content language: Vietnamese \(vi\)/);
   assert.match(p, /Reply in the language the user writes in/);
 });
+
+test('outbox markdown links cannot inject attributes', () => {
+  const html = markdownToHtml('[x](/a"onmouseover="alert(1))');
+  assert.doesNotMatch(html, /"onmouseover=/);
+});

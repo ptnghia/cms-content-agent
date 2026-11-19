@@ -40,6 +40,7 @@ test('workspace tools: read anywhere allowed, write only to agent folders', asyn
   assert.equal((await t.run('edit_file', { path: 'drafts/d.md', old_text: 'two', new_text: '2' })).isError, true, 'ambiguous');
   assert.equal((await t.run('edit_file', { path: 'drafts/d.md', old_text: 'one', new_text: '1' })).isError, false);
   assert.match((await t.run('search', { pattern: 'total posts' })).content, /posts\/stats\.md:2:/);
+  assert.equal((await t.run('search', { pattern: '(a+)+$' })).content, 'no matches', 'pattern is literal, not a regex');
   assert.match((await t.run('list_files', { depth: 2 })).content, /posts\/stats\.md/);
   assert.equal(validateInput('write_file', { path: 'a' }), 'missing "content"');
   assert.equal(validateInput('read_file', { path: 1 }), '"path" must be a string');

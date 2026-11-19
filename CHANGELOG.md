@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.5.0 — Any language, Claude API backend, security review
+
+Reviewed before release (plugin and backend); every fix below was verified in WordPress Playground or against the real
+Claude Code CLI.
+
+### Security
+- Plugin: **stored XSS** through the built-in SEO title (a Contributor could set `_content_agent_meta_title` over the
+  REST API and core prints `pre_get_document_title` unescaped). The meta is now sanitised on write and escaped on output.
+- Plugin: proposal **patches cannot edit inside an HTML tag** (an injected `onmouseover` was invisible to `wp_kses_post`).
+- Plugin: the "Write with AI" preview sanitises model HTML (`wp.dom.safeHTML`).
+- Plugin: reverting a created post requires `delete_post` on it; the review queue and diffs (which show the current,
+  possibly private content) require `edit_others_posts` and permission on the target; the chat now defaults to
+  `edit_others_posts` (it reads drafts and private content through the API key); proposals cannot be created through
+  core UIs; the backend URL must be https (http only for localhost).
+- Backend: the Claude Code agent cannot write to the shared skills / knowledge folders or plant `CLAUDE.md` /
+  `.claude/` in a workspace, and runs without the operator's MCP servers or project settings
+  (`--strict-mcp-config --setting-sources user` + deny rules). The Docker image's `/app` is root-owned.
+- Backend: content ids from the site API must be numeric before they become file names (path traversal across sites).
+- Backend: the concurrent-run limit can no longer be bypassed with parallel requests; the `api` agent's `search` is a
+  literal match (no model-controlled regex on the event loop); Markdown proposal links escape quotes; internal errors
+  are logged instead of returned; `DEV_MODE` refuses to start on a non-loopback host and serves dev routes only to a
+  loopback `Host`.
+- Docs: Codex and agy can read any file the service user can read; run them as a separate user (docs/DEPLOY.md).
+
 ### Added
 - **`AGENT_BACKEND=api`**: Claude through the Messages API (`@anthropic-ai/sdk`, the project's only npm dependency),
   no CLI process. The agent loop runs in the backend with file tools (`list_files`, `read_file`, `search`,
@@ -11,7 +35,6 @@
   (default `claude-opus-5-5`), effort: `API_EFFORT`.
 - Docker image installs npm dependencies.
 
-## 0.5.0 — Any language, field-tested
 
 ### Changed
 - **Prompts, skills and workspace files are English**; the agent writes website content in the site's `language`
@@ -29,7 +52,7 @@
 First run against a real agent (Claude Code) on a WordPress + WooCommerce + Yoast test site; see
 [docs/FIELD_TEST.md](docs/FIELD_TEST.md).
 
-### Fixed
+#### Fixed
 - **Internal links**: prompts and the internal-linking skill still told the agent to write `slug.html` links (a leftover
   from the first CMS), which produce broken links on WordPress. The workspace now lists a root-relative **Link** for every
   page (`site/inventory.md`, compose page list) and the agent is told to copy it verbatim.
@@ -37,7 +60,7 @@ First run against a real agent (Claude Code) on a WordPress + WooCommerce + Yoas
   reports a post category and a product category with the same name as duplicates.
 - The agent pointed editors to a menu that does not exist; it now says wp-admin → Content Agent → Proposals.
 
-### Added
+#### Added
 - Plugin: proposals warn about **same-site links that match no post, page, product or term** (relative `*.html`
   links included). The warning shows in the review queue and in the agent's delivery report.
 - Usage log records the **model** of each request; `/api/usage` returns `byModel`. SQLite stores add the column on start.
