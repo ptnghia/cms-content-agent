@@ -1,15 +1,17 @@
-// Dựng prompt cho một hội thoại agy MỚI: system prompt + trạng thái workspace + lịch sử đã lưu.
+// Prompt for a NEW agent session: system prompt + workspace state + saved history.
+// Prompts are English; {{LANGUAGE}} tells the agent which language to write website content in.
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './config.mjs';
 import { readSyncStatus } from './sync.mjs';
 import { hasFeature } from './content-sync.mjs';
 import { skillsIndexBlock } from './skills.mjs';
+import { languageName } from './i18n.mjs';
 
 const HISTORY_MAX_MESSAGES = 20;
 const HISTORY_MAX_CHARS = 1500;
 const LISTING_MAX = 60;
-const LISTING_SKIP = new Set(['content', 'sent']);   // hàng trăm file nội dung / đề xuất đã gửi: chỉ mô tả, không liệt kê
+const LISTING_SKIP = new Set(['content', 'sent']);   // hundreds of content files / sent proposals: described, not listed
 
 async function listTree(ws, rel = '', depth = 0, out = []) {
   if (out.length >= LISTING_MAX) return out;
@@ -19,7 +21,7 @@ async function listTree(ws, rel = '', depth = 0, out = []) {
     if (out.length >= LISTING_MAX) break;
     const r = path.join(rel, e.name).replaceAll('\\', '/');
     if (e.isDirectory()) {
-      if (LISTING_SKIP.has(e.name)) out.push(`${r}/ (thư mục, xem mô tả ở trên)`);
+      if (LISTING_SKIP.has(e.name)) out.push(`${r}/ (folder, see the description above)`);
       else if (depth < 2) await listTree(ws, r, depth + 1, out);
     }
     else out.push(r);
@@ -29,26 +31,26 @@ async function listTree(ws, rel = '', depth = 0, out = []) {
 
 export async function buildFreshPrompt({ site, workspace, history, message, sourceWorkspace, sourceName }) {
   let tpl = await readFile(path.join(ROOT, 'agent', 'system-prompt.md'), 'utf8');
-  // Site bật đồng bộ nội dung + đề xuất (api.features) → thêm hướng dẫn tối ưu bài cũ / viết bài mới qua outbox
+  // Content sync + proposals enabled (api.features): add the instructions for optimising / writing through outbox/
   if (hasFeature(site, 'proposals') || hasFeature(site, 'content')) {
     tpl += '\n' + await readFile(path.join(ROOT, 'agent', 'system-prompt-content.md'), 'utf8');
   }
   if (sourceWorkspace) {
-    // Site này là BẢN DỊCH của site khác (cùng website, ngôn ngữ khác): trỏ tới workspace bản gốc để dịch
-    tpl += `\n## Bản gốc để dịch (chỉ đọc, KHÔNG ghi vào đây)\nWebsite này có bản gốc "${sourceName || 'site gốc'}" với workspace: ${sourceWorkspace}\nMỗi trang có **cùng ID** ở hai bên: bản gốc ở \`${sourceWorkspace}/content/<loại>/<id>.md\`, bản của bạn ở \`content/<loại>/<id>.md\`. Khi được yêu cầu dịch / cập nhật bản dịch, đọc bản gốc, dịch theo skill \`content-translation\`, rồi ghi đề xuất \`action: update\` với cùng \`id\` vào \`outbox/\` của workspace này (cập nhật bản dịch hiện có, không tạo trang mới).\n`;
+    // This site is a TRANSLATION of another site (same website, other language): point to the source workspace
+    tpl += `\n## Source for translation (read-only, NEVER write here)\nThis website has a source site "${sourceName || 'source'}" with workspace: ${sourceWorkspace}\nEvery page has the **same ID** on both sides: the source is \`${sourceWorkspace}/content/<type>/<id>.md\`, yours is \`content/<type>/<id>.md\`. When asked to translate or update a translation, read the source, translate with the \`content-translation\` skill, then write an \`action: update\` proposal with the same \`id\` to this workspace's \`outbox/\` (update the existing translation, never create a new page).\n`;
   }
   const status = await readSyncStatus(workspace);
   const files = await listTree(workspace);
   const system = tpl
     .replaceAll('{{SITE_NAME}}', site.name || 'website')
-    .replaceAll('{{LANGUAGE}}', (site.language || 'vi') + (Array.isArray(site.languages) && site.languages.length ? `; website đa ngôn ngữ, các ngôn ngữ: ${site.languages.join(', ')} — dùng skill content-translation khi cần dịch` : ''))
-    .replaceAll('{{SYNC_STATUS}}', status ? `(${status.count} bài, đồng bộ lúc ${status.syncedAt})` : '(CHƯA đồng bộ)')
-    .replaceAll('{{WORKSPACE_LISTING}}', files.length ? files.map((f) => `- ${f}`).join('\n') : '(workspace trống)');
+    .replaceAll('{{LANGUAGE}}', `${languageName(site.language || 'en')} (${site.language || 'en'})` + (Array.isArray(site.languages) && site.languages.length ? `; multilingual website, languages: ${site.languages.join(', ')}; use the content-translation skill to translate` : ''))
+    .replaceAll('{{SYNC_STATUS}}', status ? `(${status.count} items, synced ${status.syncedAt})` : '(NOT synced yet)')
+    .replaceAll('{{WORKSPACE_LISTING}}', files.length ? files.map((f) => `- ${f}`).join('\n') : '(empty workspace)');
 
   const recent = history.slice(-HISTORY_MAX_MESSAGES);
   const transcript = recent.length
-    ? '\n\n## Lịch sử hội thoại trước đó (để bạn nắm ngữ cảnh)\n' +
-      recent.map((m) => `**${m.role === 'user' ? 'Người dùng' : 'Trợ lý'}:** ${String(m.content).slice(0, HISTORY_MAX_CHARS)}`).join('\n\n')
+    ? '\n\n## Earlier conversation (for context)\n' +
+      recent.map((m) => `**${m.role === 'user' ? 'User' : 'Assistant'}:** ${String(m.content).slice(0, HISTORY_MAX_CHARS)}`).join('\n\n')
     : '';
-  return `${system}${await skillsIndexBlock(site)}${transcript}\n\n---\nYêu cầu mới của người dùng:\n${message}`;
+  return `${system}${await skillsIndexBlock(site)}${transcript}\n\n---\nNew request from the user:\n${message}`;
 }

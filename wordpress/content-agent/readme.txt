@@ -1,10 +1,10 @@
 === Content Agent ===
-Contributors: cms-content-agent
+Contributors: ptnghia
 Tags: ai, seo, content, chatbot, woocommerce
 Requires at least: 6.2
-Tested up to: 6.8
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -23,6 +23,16 @@ Content Agent connects your site to a self-hosted [cms-content-agent](https://gi
 
 New posts are always created as **drafts**.
 
+== External services ==
+
+This plugin is a client for a backend service that **you run yourself** ([cms-content-agent](https://github.com/ptnghia/cms-content-agent), open source). It does nothing until you enter that backend's URL in *Content Agent → Settings*. Nothing is sent to the plugin author.
+
+* **What is sent to your backend, and when:**
+  * When the backend syncs (on demand or on its schedule), it reads posts, pages, categories, WooCommerce products and SEO data through this plugin's REST API, authenticated with the site's API key.
+  * When an editor uses the chat or "Write with AI", their browser sends the message, the post being edited and a short-lived token (WordPress user ID and display name) to the backend.
+  * The widget script (`widget.js`) is loaded from the backend URL in wp-admin.
+* **Third-party AI provider:** your backend runs an AI agent CLI (Claude Code by Anthropic, OpenAI Codex, or another one you configure), which sends prompts containing your site content to that provider. Their terms apply: [Anthropic terms](https://www.anthropic.com/legal/commercial-terms) and [privacy policy](https://www.anthropic.com/legal/privacy), [OpenAI terms](https://openai.com/policies/terms-of-use) and [privacy policy](https://openai.com/policies/privacy-policy).
+
 == Installation ==
 
 1. Run the backend (Docker or Node.js 22+) on a server you control. See the project README.
@@ -40,6 +50,11 @@ Yes: the backend syncs posts, pages, products and categories so the agent can re
 No. It can only create proposals. Applying a proposal needs a logged-in user with permission to edit that page, and new posts are created as drafts.
 
 == Changelog ==
+
+= 0.5.0 =
+* The assistant writes in your site's language and replies in yours. English and Vietnamese UI.
+* Warns about internal links that point to no page on the site.
+* Chat widget loaded with wp_enqueue_script.
 
 = 0.4.0 =
 * First release.

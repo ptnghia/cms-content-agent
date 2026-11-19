@@ -15,8 +15,9 @@ Without an SEO plugin, it uses its own SEO fields.
 
 [Tiếng Việt](README.vi.md) · [Deploy](docs/DEPLOY.md) · [Plugin ↔ backend API](docs/SITE_API.md) · [Roadmap](docs/PLAN.md) · [Contributing](CONTRIBUTING.md)
 
-> The agent's prompts and skills are written in Vietnamese (the project's first users), and the plugin ships English + Vietnamese UI.
-> Prompts are plain Markdown in `agent/` and `skills/`. Translations are welcome.
+> **Any content language.** The agent writes in the site's `language` (set automatically from the WordPress locale) and
+> replies in the language the editor writes in. Prompts and skills are plain English Markdown in `agent/` and `skills/`.
+> The plugin and chat widget ship English and Vietnamese UI; other UI translations are welcome.
 
 ---
 

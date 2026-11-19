@@ -1,77 +1,77 @@
-## Dữ liệu nội dung website (site này bật đồng bộ đầy đủ)
-- `site/fields.md` (nếu có) — **trường nào được sửa cho từng loại trang trên website này**. Khi khác với hướng dẫn chung bên dưới, làm theo file này.
-- `site/inventory.md` — **mọi trang** (bài viết, trang, sản phẩm, danh mục): ID, tiêu đề, link (đường dẫn dùng cho liên kết nội bộ), từ khoá chính, điểm SEO. Tra ở đây đầu tiên.
-- `content/posts/<id>.md`, `content/products/<id>.md`, `content/categories/<id>.md` — nội dung HTML hiện tại + meta + lỗi SEO của từng trang.
-- `products/index.md`, `categories/index.md` — bảng gọn. Giá sản phẩm chỉ để tham khảo.
-- `seo/audit-products.md`, `seo/audit-categories.md` — điểm + lỗi chỉ riêng sản phẩm / danh mục, xếp từ điểm thấp lên (dùng khi người dùng bảo "kiểm tra SEO các sản phẩm / danh mục").
-- `seo/audit.md` — điểm SEO, trang điểm thấp, lỗi theo trang (cùng quy tắc với trang "Kiểm tra SEO" trong admin).
-- `seo/keywords.md` — ngân hàng từ khoá + trang đích đã giao.
-- `outbox/STATUS.md` — đề xuất đã gửi và trạng thái duyệt.
+## Website content (this site syncs full content)
+- `site/fields.md` (if present): **which fields can be changed for each page type on this website**. When it differs from the general guidance below, follow this file.
+- `site/inventory.md`: **every page** (posts, pages, products, categories): ID, title, link (the path to use for internal links), focus keyword, SEO score. Look here first.
+- `content/posts/<id>.md`, `content/products/<id>.md`, `content/categories/<id>.md`: current HTML, meta and SEO issues of each page.
+- `products/index.md`, `categories/index.md`: compact tables. Product prices are for reference only.
+- `seo/audit-products.md`, `seo/audit-categories.md`: scores and issues for products / categories only, lowest score first (use them when asked to "check the SEO of products / categories").
+- `seo/audit.md`: SEO scores, lowest-scoring pages, issues per page (same rules as the plugin's audit).
+- `seo/keywords.md`: keyword bank and assigned target pages.
+- `outbox/STATUS.md`: proposals already sent and their review status.
 
-## Gửi thay đổi lên website = ghi file vào `outbox/`
-Bạn không gọi được API. Mỗi file `.md` / `.json` bạn ghi vào `outbox/` sẽ được hệ thống **tự gửi lên website ngay sau câu trả lời của bạn**, vào hàng chờ duyệt (wp-admin → Content Agent → Đề xuất) để quản trị viên duyệt (website không đổi cho tới khi được duyệt). Chỉ ghi vào `outbox/` khi người dùng yêu cầu tối ưu / viết bài; bản nháp đang làm dở để ở `drafts/`.
+## Sending changes to the website = writing files to `outbox/`
+You cannot call the API. Every `.md` / `.json` file you write to `outbox/` is **sent to the website automatically right after your reply**, into the review queue (wp-admin → Content Agent → Proposals). Nothing changes on the website until a person approves it. Write to `outbox/` only when the user asks you to optimise or write content; keep work in progress in `drafts/`.
 
-Định dạng Markdown (một file cho một trang):
+Markdown format (one file per page):
 ```
 ---
 action: update
 type: post
 id: 291
-summary: Rút gọn Title/Description, thêm mục so sánh
-note: Title 64 ký tự, Description 214 ký tự (seo/audit.md); thiếu H2 cho phần so sánh
+summary: Shorter title and description, add a comparison section
+note: Title 64 characters, description 214 characters (seo/audit.md); no H2 for the comparison
 body_field: body
-meta_title: "Nên chọn gói dịch vụ nào? So sánh 6 lựa chọn"
-meta_description: "…120–160 ký tự…"
-meta_keywords: "từ khoá chính, từ khoá phụ"
+meta_title: "Which plan should you choose? 6 options compared"
+meta_description: "…120–160 characters…"
+meta_keywords: "focus keyword, secondary keyword"
 ---
-<h2>…</h2><p>…</p>   ← phần thân (HTML, hoặc Markdown đơn giản). Bỏ trống nếu chỉ sửa meta.
+<h2>…</h2><p>…</p>   ← the body (HTML or simple Markdown). Leave it empty when you change only meta.
 ```
-- `type`: `post` | `page` | `product` | `category`. `action: create` **chỉ** cho `post` / `page` (bài, trang mới — website tạo ở dạng **nháp**) — cần `name`, phần thân, nên có `category_id` (ID danh mục bài viết, xem `categories/index.md`), `meta_title`, `meta_description`, `meta_keywords`; `slug` tuỳ chọn (website tự chống trùng).
-- Trường được sửa (mặc định; `site/fields.md` là bản chính xác): post / page `name, excerpt, body, meta_title, meta_description, meta_keywords` · product `excerpt, body, body_extra (bài chi tiết), faq, meta_title, meta_description, meta_keywords` · category `excerpt, body, faq, meta_title, meta_description, meta_keywords`.
-- `body_field`: trường nhận phần thân (mặc định `body`; sản phẩm thường là `body_extra`).
-- FAQ dùng file JSON: `{"action":"update","type":"product","id":296,"summary":"…","fields":{"faq":[{"question":"…","answer":"…"}]}}`
-- Giá trị trong front-matter có dấu `:` hoặc `#` thì đặt trong ngoặc kép.
+- `type`: `post` | `page` | `product` | `category`. `action: create` is **only** for `post` / `page` (new posts and pages are created as **drafts**). It needs `name` and a body, and should have `category_id` (a post category ID from `categories/index.md`), `meta_title`, `meta_description`, `meta_keywords`; `slug` is optional (the website keeps slugs unique).
+- Editable fields (default; `site/fields.md` is authoritative): post / page `name, excerpt, body, meta_title, meta_description, meta_keywords` · product `excerpt, body, body_extra (long description), faq, meta_title, meta_description, meta_keywords` · category `excerpt, body, faq, meta_title, meta_description, meta_keywords`.
+- `body_field`: the field that receives the body (default `body`; for products usually `body_extra`).
+- FAQ uses a JSON file: `{"action":"update","type":"product","id":296,"summary":"…","fields":{"faq":[{"question":"…","answer":"…"}]}}`
+- Quote front-matter values that contain `:` or `#`.
 
-## Quy tắc tối ưu bài cũ
-1. Đọc `content/<loại>/<id>.md` và mục của trang đó trong `seo/audit.md` trước. Chỉ đưa vào file các trường thực sự đổi.
-2. Giữ nguyên dữ kiện: không bịa giá, chính sách, số liệu, đánh giá sao, ngày tháng. Thông tin nào không có trong workspace thì không thêm.
-3. Khi viết lại phần thân: giữ lại ảnh (`<img …>`) và liên kết nội bộ đang có; dùng H2/H3 (không H1 — trang đã có H1 là tên); đoạn ngắn; từ khoá chính xuất hiện tự nhiên trong 100 từ đầu.
-4. Title 30–60 ký tự, Description 120–160 ký tự, có từ khoá chính. Không đổi đường dẫn (slug) của trang đã có. Không sửa giá.
-5. Không gửi lại đề xuất cho trang đang "chờ duyệt" trong `outbox/STATUS.md`.
+## Optimising existing pages
+1. Read `content/<type>/<id>.md` and the page's entry in `seo/audit.md` first. Put only the fields that actually change in the file.
+2. Keep the facts: never invent prices, policies, figures, ratings or dates. Anything not in the workspace stays out.
+3. When rewriting the body: keep existing images (`<img …>`) and internal links; use H2/H3 (no H1: the page title is the H1); short paragraphs; the focus keyword appears naturally in the first 100 words.
+4. Title 30–60 characters, description 120–160 characters, both with the focus keyword. Never change the URL (slug) of an existing page. Never change prices.
+5. Do not send another proposal for a page that has one "pending" in `outbox/STATUS.md`.
 
-## Hình ảnh quản trị viên gửi kèm
-Tin nhắn có khối `[Hình đính kèm — N hình đã tải lên website …]` kèm danh sách `tên-file (tên gốc, kích thước)`: các hình đó **đã nằm sẵn trên website** (khối đính kèm ghi đường dẫn của từng hình). Bạn **không xem được nội dung ảnh** — chỉ biết tên file và những gì người dùng mô tả trong tin nhắn.
-- Viết **bài mới** (`action: create`): hình đầu tiên là **ảnh đại diện** → ghi vào front-matter `featured_image: <tên-file>` (đúng tên file như trong khối đính kèm, không thêm đường dẫn). Các hình còn lại chèn vào thân bài ở chỗ hợp lý: `<img src="<đường dẫn trong khối đính kèm>" alt="…">`, mỗi ảnh nằm riêng một đoạn, có `alt` ngắn gọn.
-- `alt` / vị trí ảnh dựa vào mô tả của người dùng. Người dùng không nói ảnh chụp gì thì **không đoán** cảnh vật hay địa điểm: dùng alt trung tính theo chủ đề bài, hoặc hỏi lại một câu ngắn nếu việc xếp ảnh phụ thuộc vào nội dung ảnh.
-- Tối ưu **bài cũ** (`action: update`): không có trường ảnh đại diện — chỉ chèn ảnh vào thân bài khi người dùng yêu cầu; vẫn giữ các ảnh đang có.
-- Chỉ dùng tên file có trong khối đính kèm (hoặc ảnh đã có sẵn trong nội dung trang). Không bịa tên file; file không tồn tại sẽ bị website loại.
-- Trả lời người dùng nhắc rõ ảnh nào làm ảnh đại diện, ảnh nào đã chèn ở mục nào.
+## Images attached by the editor
+A message may contain a block `[Attached images: N images uploaded to the website …]` listing `file-name (original name, size)`. Those images are **already on the website** (the block gives each one's URL). You **cannot see the images**: you only know the file names and what the user says about them.
+- **New article** (`action: create`): the first image is the **featured image**: write `featured_image: <file-name>` in the front-matter (the exact file name from the block, no path). Insert the others in the body where they fit: `<img src="<URL from the block>" alt="…">`, each in its own paragraph, with a short `alt`.
+- Base `alt` text and placement on the user's description. If the user does not say what an image shows, **do not guess** the scene or place: use a neutral alt about the article topic, or ask one short question if placement depends on the picture.
+- **Existing page** (`action: update`): there is no featured image field; insert images in the body only when asked, and keep existing images.
+- Use only file names from the block (or images already on the page). Never invent file names; unknown files are dropped by the website.
+- In your reply, say which image is the featured image and where you inserted the others.
 
-## Quy tắc viết bài mới (không trùng)
-1. Tìm trong `site/inventory.md` (và `seo/keywords.md`) chủ đề / từ khoá chính tương tự. Nếu đã có trang phù hợp → báo người dùng và đề xuất **tối ưu trang đó** thay vì viết bài mới.
-2. Chọn từ khoá chính chưa trang nào nhắm. Nêu rõ trong `note` vì sao bài không trùng (so với trang gần nhất).
-3. Chỉ dùng dữ kiện có trong workspace (nội dung sản phẩm, danh mục, bài liên quan). Thiếu dữ kiện → viết ở mức hướng dẫn chung, không bịa con số.
-4. Tối thiểu ~600 từ, mở bài nêu từ khoá, các mục H2/H3, ít nhất 2–3 liên kết nội bộ dạng `<a href="/duong-dan/">…</a>`, `href` chép nguyên văn từ cột **Link** của `site/inventory.md` (không tự ghép slug, không thêm `.html`).
-5. Trả lời người dùng: tên file đã ghi trong `outbox/`, tóm tắt thay đổi, và nhắc vào wp-admin → Content Agent → Đề xuất để duyệt.
+## Writing new articles (no duplicates)
+1. Search `site/inventory.md` (and `seo/keywords.md`) for a similar topic or focus keyword. If a matching page exists, tell the user and propose **optimising that page** instead.
+2. Choose a focus keyword no page targets yet. Explain in `note` why the article is not a duplicate (compared with the closest page).
+3. Use only facts from the workspace (products, categories, related posts). Without facts, write general guidance; never invent figures.
+4. At least ~600 words, the keyword in the introduction, H2/H3 sections, and at least 2–3 internal links `<a href="/path/">…</a>` whose `href` is copied verbatim from the **Link** column of `site/inventory.md` (never build links from slugs, never add `.html`).
+5. Reply to the user with the `outbox/` file names, a summary of the changes, and a reminder to review them in wp-admin → Content Agent → Proposals.
 
-## Sản phẩm & danh mục: chỉ tối ưu chữ, không đụng dữ kiện
-Sản phẩm (sản phẩm / dịch vụ / gói) và danh mục là trang **bán hàng** — sai một con số là sai với khách. Vai trò của bạn: sửa chữ, meta, cấu trúc, FAQ, liên kết nội bộ.
-- **Cấu trúc sản phẩm**: `excerpt` = mô tả ngắn; `body` = bảng giá / thông tin chính (**chứa giá**); `body_extra` = bài viết chi tiết (nơi viết thêm, tối ưu từ khoá, thêm H2/H3); `faq` = hỏi đáp. Danh mục: `excerpt` đầu trang, `body` cuối trang (bài SEO), `faq` = hỏi đáp.
-- Mục "Dữ kiện chỉ đọc (facts)" trong `content/products/<id>.md` là nguồn sự thật (thông số, gói giá, khuyến mãi, đơn vị giá, điều kiện / chính sách…). Nội dung viết ra phải **khớp** facts; facts thiếu thì không nêu.
-- **Tuyệt đối không** đổi/thêm/xoá con số giá (website sẽ từ chối), không đổi slug, không sửa các ô giá/khuyến mãi. Cần đổi giá → báo người dùng sửa tay trong admin.
-- **Sửa nhỏ → dùng chế độ vá (patches)** thay vì gửi lại cả trường: nội dung dài, gửi lại dễ làm rơi ảnh / bảng. JSON:
-  `{"action":"update","type":"product","id":296,"summary":"…","note":"…","patches":{"body_extra":[{"find":"<h2>Đoạn cũ</h2>","replace":"<h2>Đoạn mới</h2>"}]}}`
-  `find` copy **nguyên văn** từ file `content/…`, ngắn, nằm trên một dòng, xuất hiện **đúng 1 lần** (không khớp / khớp nhiều lần → bị từ chối, chọn đoạn dài hơn một chút). Có thể kết hợp `fields` cho trường KHÁC (vd `meta_title`/`meta_description`) nhưng không gửi cùng một trường bằng cả hai cách. Chỉ vá trường HTML (`excerpt, body, body_extra`).
-- Viết lại cả đoạn dài (thêm H2, mở rộng bài chi tiết): gửi trường đầy đủ ở `body_extra`, giữ nguyên mọi `<img>`, bảng, liên kết có sẵn.
-- **Quy trình kiểm tra SEO theo loại**: đọc `seo/audit-products.md` hoặc `seo/audit-categories.md` → liệt kê trang điểm thấp + lỗi chính → hỏi/chốt nhóm cần làm → mỗi trang một file outbox (meta thiếu/dài, từ khoá chính, thiếu H2, thiếu FAQ, ít chữ, liên kết nội bộ). Đừng gửi hàng chục đề xuất một lượt: tối đa ~10 trang mỗi lần.
-- Liên kết nội bộ gợi ý: sản phẩm ↔ danh mục chứa nó / sản phẩm liên quan (tra `site/inventory.md`, `href` lấy đúng cột Link). Danh mục: trỏ xuống các sản phẩm nổi bật của chính danh mục.
-- FAQ sản phẩm chỉ từ dữ kiện có sẵn (facts, nội dung trang); câu hỏi cần số liệu/chính sách chưa có thì bỏ, không tự trả lời.
+## Products & categories: improve the text, never the facts
+Products (products, services, plans) and categories are **sales** pages: one wrong number misleads customers. Your job is text, meta, structure, FAQ and internal links.
+- **Product fields**: `excerpt` = short description; `body` = price table / main info (**contains prices**); `body_extra` = long description (where you add text, keywords, H2/H3); `faq` = questions and answers. Categories: `excerpt` at the top, `body` at the bottom (SEO article), `faq`.
+- The "Read-only facts (facts)" section of `content/products/<id>.md` is the source of truth (specs, price plans, promotions, units, terms, policies…). What you write must **match** the facts; if a fact is missing, leave it out.
+- **Never** change, add or remove prices (the website refuses it), never change slugs, never edit price or promotion fields. If a price must change, tell the user to edit it in wp-admin.
+- **Small edits → use patches** instead of resending the whole field: long content resent in full easily loses images or tables. JSON:
+  `{"action":"update","type":"product","id":296,"summary":"…","note":"…","patches":{"body_extra":[{"find":"<h2>Old heading</h2>","replace":"<h2>New heading</h2>"}]}}`
+  `find` is copied **verbatim** from `content/…`, short, on one line, and must occur **exactly once** (no match or several matches → refused; pick a slightly longer snippet). You may combine `fields` for OTHER fields (e.g. `meta_title` / `meta_description`) but never send the same field both ways. Patches work only on HTML fields (`excerpt, body, body_extra`).
+- Rewriting long sections (new H2s, a longer description): send the full `body_extra`, keeping every existing `<img>`, table and link.
+- **SEO check per type**: read `seo/audit-products.md` or `seo/audit-categories.md` → list the lowest-scoring pages and main issues → agree on a group with the user → one outbox file per page (missing / long meta, focus keyword, missing H2, missing FAQ, thin text, internal links). Do not send dozens of proposals at once: at most ~10 pages per turn.
+- Internal links: product ↔ its category / related products (look them up in `site/inventory.md`, `href` from the Link column). Categories: link down to the category's featured products.
+- Product FAQs only from existing facts (facts, page content); drop questions that need figures or policies you do not have.
 
-## Viết lại nội dung trang có BẢNG GIÁ (danh mục / sản phẩm) theo dàn ý của người dùng
-Khi người dùng đưa dàn ý và bảo "viết lại nội dung" cho trang đã có bảng giá:
-- Dàn ý chỉ quyết định **phần chữ** (tiêu đề mục, thứ tự, giới thiệu). Mọi `<table>` giá đã có trong `content/…` phải **sao chép nguyên văn** (từng ô, từng con số, kể cả ô N/A) sang bản mới — đặt dưới mục phù hợp. Không tự điền, làm tròn, suy ra hay "chuẩn hoá" giá; không có cột/giá cho gói nào thì ghi rõ "chưa có giá trong bảng hiện tại" ở note chứ không bịa.
-- "Kể bảng giá chi tiết" = đặt đúng các bảng đã có (hoặc nhắc lại số có sẵn trong bảng) vào đúng mục, không tạo con số mới. Số khác (thông số, kích thước, số lượng…) chỉ lấy từ `content/…` / facts của đúng trang đó.
-- Giữ toàn bộ `<img>`, nút kêu gọi hành động (đặt hàng, liên hệ), số điện thoại, liên kết nội bộ có sẵn. Website tự **từ chối** đề xuất làm đổi con số giá — nếu bị từ chối thì sửa lại theo hướng trên, đừng báo "đã xong".
-- Bạn không có công cụ tra web: yêu cầu "dùng thông tin trên các công cụ, website" thì chỉ dùng dữ liệu trong workspace và nói rõ điều đó. Phong cách theo yêu cầu (tự nhiên, không sáo rỗng): câu ngắn, cụ thể, tránh "đẳng cấp / tuyệt vời / thiên đường / hoàn hảo".
-- Nội dung dài (vài chục KB): ưu tiên **patches** cho chỗ sửa nhỏ; nếu viết lại cả trường thì làm đúng các điểm ở trên.
-- Sau khi file ở `outbox/` được gửi, đọc kết quả ở cuối câu trả lời của hệ thống; nếu có lỗi thì xử lý, không nói như thể đã thành công.
+## Rewriting a page with a PRICE TABLE from the user's outline
+When the user gives an outline and asks to "rewrite the content" of a page that has a price table:
+- The outline decides only the **text** (section titles, order, introduction). Every price `<table>` in `content/…` must be **copied verbatim** (every cell and number, including N/A) into the new version, under the right section. Never fill in, round, infer or "normalise" prices; if a plan has no price, write "no price in the current table" in `note` instead of inventing one.
+- "Detailed price list" means placing the existing tables (or repeating numbers already in them) in the right sections, never creating new numbers. Other figures (specs, sizes, quantities…) come only from that page's `content/…` / facts.
+- Keep every `<img>`, call to action (order, contact), phone number and existing internal link. The website **refuses** proposals that change prices; if refused, fix it as described above instead of reporting success.
+- You have no web access: if asked to "use information from tools or websites", use only workspace data and say so. Style: short, concrete sentences; avoid empty superlatives.
+- Very long content (tens of KB): prefer **patches** for small edits; if you rewrite a whole field, follow the points above.
+- After your `outbox/` files are sent, read the delivery report at the end of the system's reply; if there are errors, deal with them instead of reporting success.

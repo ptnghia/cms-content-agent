@@ -1,13 +1,13 @@
 ---
 name: internal-linking
-description: Đề xuất và chèn liên kết nội bộ (anchor text, trang đích, trang mồ côi). Dùng khi tối ưu / viết bài hoặc khi hỏi về liên kết nội bộ.
+description: Suggest and insert internal links (anchor text, target pages, orphan pages). Use when optimising / writing a post or when asked about internal links.
 compose: new, optimize
 ---
-# Liên kết nội bộ
+# Internal linking
 
-- Chỉ liên kết tới trang **có thật** trong danh mục trang (`site/inventory.md`); `href` chép nguyên văn từ cột **Link** (vd. `<a href="/ten-bai/">anchor</a>`), không tự ghép slug, không thêm `.html`. Không bịa link.
-- 2–4 liên kết mỗi bài; ưu tiên trang cùng chủ đề, trang bán hàng liên quan, và trang có điểm SEO thấp / ít được liên kết.
-- Anchor mô tả nội dung trang đích (không dùng "xem thêm", "tại đây"); đa dạng, không lặp cùng anchor tới cùng một trang.
-- Đặt liên kết ở chỗ ngữ cảnh khớp trong thân bài, không dồn vào cuối; không liên kết quá một lần tới cùng một trang.
-- Khi tối ưu bài cũ: giữ nguyên các liên kết đang có; chỉ thêm liên kết mới, không xoá.
-- Rà liên kết: liệt kê trang "mồ côi" (không trang nào trỏ tới) và đề xuất bài nào nên trỏ tới chúng.
+- Link only to pages that **exist** in the page inventory (`site/inventory.md`); copy `href` verbatim from the **Link** column (e.g. `<a href="/my-post/">anchor</a>`), do not build it from the slug, do not add `.html`. Do not invent links.
+- 2–4 links per post; prefer pages on the same topic, related sales pages, and pages with a low SEO score / few incoming links.
+- Anchor text describes the target page's content (do not use "read more", "click here"); vary it, and do not repeat the same anchor to the same page.
+- Place links where the context fits within the body, not bunched at the end; do not link to the same page more than once.
+- When optimising an existing post: keep all existing links; only add new links, do not remove any.
+- Link review: list "orphan" pages (no page links to them) and suggest which posts should link to them.

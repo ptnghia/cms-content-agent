@@ -15,6 +15,7 @@ import { SKILLS_DIR } from './skills.mjs';
 import { normalizeCompose, buildComposePrompt, parseComposeResponse } from './compose.mjs';
 import { createRateLimiter } from './rate-limit.mjs';
 import { toCms } from './fields.mjs';
+import { t } from './i18n.mjs';
 
 const WEB = path.join(ROOT, 'web');
 const KNOWLEDGE_DIR = path.join(ROOT, 'knowledge');
@@ -101,9 +102,9 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
     return { ...v, site: sites[v.siteId], cors };
   }
 
-  function rateLimited(res, cors, r) {
+  function rateLimited(res, cors, r, site) {
     sendJson(res, 429, { error: 'rate_limited', retryAfterSec: r.retryAfterSec,
-      message: `Bạn đã gửi quá nhiều yêu cầu, thử lại sau ${Math.ceil(r.retryAfterSec / 60)} phút.` },
+      message: t(site, 'rate_limited', { min: Math.ceil(r.retryAfterSec / 60) }) },
     { ...cors, 'Retry-After': String(r.retryAfterSec) });
   }
 
@@ -148,9 +149,9 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
       if (!conv) return sendJson(res, 404, { error: 'conversation_not_found' }, cors);
     }
     if (conv && activeConvs.has(conv.id)) return sendJson(res, 409, { error: 'conversation_busy' }, cors);
-    if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy' }, cors);
+    if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: t(site, 'server_busy') }, cors);
     const rl = chatLimiter.take(`${siteId}:${uid}`);
-    if (!rl.ok) return rateLimited(res, cors, rl);
+    if (!rl.ok) return rateLimited(res, cors, rl, site);
     conv ??= await store.createConversation(siteId, uid);
 
     activeConvs.add(conv.id);
@@ -202,13 +203,13 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
       let { out } = r;
       if (!out.response.trim() && out.denied.length && !ac.signal.aborted) {
         // The agent tried to run a command (not allowed headless) -> ask it to answer from files only.
-        const nudge = 'Bạn không được phép chạy lệnh hay gọi mạng. Hãy trả lời yêu cầu vừa rồi chỉ bằng cách đọc file trong workspace (ưu tiên posts/stats.md) và ngữ cảnh hội thoại.';
+        const nudge = 'You cannot run commands or use the network. Answer the last request only by reading workspace files (start with posts/stats.md) and the conversation so far.';
         ({ out } = await run(conv.agentSessionId || undefined, nudge));
       }
       if (!out.response.trim() && !out.denied.length && out.status !== 'CANCELLED' && !ac.signal.aborted && conv.agentSessionId) {
         // Finished without writing an answer -> ask once for a summary instead of failing straight away.
         send({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
-        ({ out } = await run(conv.agentSessionId, 'Bạn chưa trả lời. Hãy trả lời người dùng ngay: tóm tắt đã làm gì (file nào đã ghi trong outbox/ nếu có), thay đổi chính và điều cần lưu ý. Nếu chưa làm được việc được giao thì nói rõ lý do.'));
+        ({ out } = await run(conv.agentSessionId, 'You have not replied yet. Reply to the user now: what you did (which outbox/ files you wrote, if any), the main changes and anything to watch out for. If you could not do the task, say why.'));
       }
       if (out.status === 'CANCELLED') {
         conv.messages.push({ role: 'assistant', content: out.response, aborted: true, at: new Date().toISOString() });
@@ -216,8 +217,8 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
         let content = out.response;
         if (!content.trim()) {
           content = out.denied.length
-            ? `Tác vụ bị từ chối vì agent không có quyền: ${out.denied.join(', ')}.`
-            : 'Agent không trả về nội dung. Hãy thử lại.';
+            ? t(site, 'denied', { tools: out.denied.join(', ') })
+            : t(site, 'empty_reply');
           send({ type: 'delta', text: content });
         }
         // Proposals the agent wrote into outbox/ -> send to the website review queue, report back in chat.
@@ -227,7 +228,7 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
           // Website rejected something (e.g. a changed price) -> give the errors back to the agent once.
           send({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
           try {
-            const fix = 'Website đã TỪ CHỐI các đề xuất sau. Sửa lại theo đúng lý do (giữ nguyên mọi con số giá trong bảng, copy nguyên văn các <table>), ghi file mới vào outbox/ rồi trả lời ngắn gọn đã sửa gì:\n' +
+            const fix = 'The website REJECTED these proposals. Fix them according to the reasons (keep every price and figure, copy existing <table>s verbatim), write new files to outbox/, then reply briefly with what you fixed:\n' +
               failed.map((f) => `- ${f.file}: ${f.error}${f.warnings?.length ? ' (' + f.warnings.slice(0, 3).join('; ') + ')' : ''}`).join('\n');
             const r2 = await run(conv.agentSessionId, fix);
             const sent2 = await processOutbox(siteId, site, workspace, conv.id).catch((e) => [{ file: 'outbox', ok: false, error: e.message }]);
@@ -236,7 +237,7 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
           } catch { /* keep the first result */ }
         }
         if (sent.length) {
-          const note = outboxSummary(sent);
+          const note = outboxSummary(sent, site);
           content += note;
           send({ type: 'delta', text: note });
           send({ type: 'proposals', items: sent });
@@ -266,11 +267,11 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
     let body;
     try { body = await readJson(req, 450_000); } catch { return sendJson(res, 400, { error: 'bad_json' }, cors); }
     const r = normalizeCompose(body, site);
-    if (r.mode === 'new' && !r.brief && !r.keyword) return sendJson(res, 400, { error: 'empty_brief', message: 'Hãy mô tả bài cần viết hoặc nhập từ khoá chính.' }, cors);
-    if (r.mode === 'optimize' && !r.cur.body.replace(/<[^>]*>/g, '').trim()) return sendJson(res, 400, { error: 'empty_content', message: 'Chưa có nội dung để tối ưu.' }, cors);
-    if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: 'Hệ thống đang bận, thử lại sau ít phút.' }, cors);
+    if (r.mode === 'new' && !r.brief && !r.keyword) return sendJson(res, 400, { error: 'empty_brief', message: t(site, 'empty_brief') }, cors);
+    if (r.mode === 'optimize' && !r.cur.body.replace(/<[^>]*>/g, '').trim()) return sendJson(res, 400, { error: 'empty_content', message: t(site, 'empty_content') }, cors);
+    if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: t(site, 'server_busy') }, cors);
     const rl = composeLimiter.take(`${siteId}:${uid}`);
-    if (!rl.ok) return rateLimited(res, cors, rl);
+    if (!rl.ok) return rateLimited(res, cors, rl, site);
 
     activeCount++;
     const startedAt = Date.now();
@@ -298,10 +299,10 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
       let out = await turn(prompt);
       for (let i = 0; i < 2 && !out.response.trim() && out.status !== 'CANCELLED' && sid && !ac.signal.aborted; i++) {
         // The agent tried a blocked shell command and returned nothing -> ask for the formatted answer.
-        out = await turn('Lệnh shell bị từ chối. Hãy chỉ dùng công cụ đọc file (hoặc không đọc gì nếu đã đủ dữ kiện) rồi trả kết quả ĐÚNG định dạng các mục ===SECTION=== đã nêu.', sid);
+        out = await turn('Shell commands are refused. Use only file reading (or nothing if you already have the data), then answer in EXACTLY the ===SECTION=== format given.', sid);
       }
       if (out.status === 'CANCELLED') return;
-      const parsed = parseComposeResponse(out.response || '');
+      const parsed = parseComposeResponse(out.response || '', t(site, 'bad_format'));
       send({ type: 'result', mode: r.mode, scope: r.scope, fields: toCms(site, parsed.fields), notes: parsed.notes });
       ok = true;
     } catch (err) {

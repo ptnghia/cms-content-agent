@@ -1,19 +1,19 @@
 ---
 name: seo-onpage
-description: Tối ưu SEO on-page cho MỘT trang có sẵn (title, description, heading, từ khoá, đoạn mở đầu, ảnh alt). Dùng khi yêu cầu "tối ưu / sửa SEO / cải thiện thứ hạng" một bài, sản phẩm hoặc danh mục.
+description: On-page SEO optimisation for ONE existing page (title, description, headings, keywords, opening paragraph, image alt). Use when asked to "optimise / fix SEO / improve rankings" for a post, product or category.
 compose: optimize
 ---
-# SEO on-page cho một trang
+# On-page SEO for one page
 
-Quy trình:
-1. Đọc trang (`content/<loại>/<id>.md`) và mục của trang trong `seo/audit.md`; xác định từ khoá chính (ưu tiên `seo/keywords.md`, nếu chưa có thì suy từ tiêu đề và nói rõ là suy đoán).
-2. Chấm theo checklist, chỉ sửa chỗ thực sự lỗi:
-   - Title 30–60 ký tự, từ khoá chính ở nửa đầu, có điểm khác biệt (không chỉ lặp tên trang).
-   - Description 120–160 ký tự, có từ khoá chính, kết bằng lợi ích hoặc lời kêu gọi hành động; không trùng title.
-   - Một H1 duy nhất (đã là tên trang) — thân bài chỉ dùng H2/H3; từ khoá chính hoặc biến thể trong ít nhất một H2.
-   - Từ khoá chính trong 100 từ đầu; mật độ tự nhiên, không nhồi.
-   - Đoạn ngắn (≤ 4 câu), danh sách khi liệt kê; có phần hỏi đáp nếu trang có câu hỏi thường gặp thật.
-   - `alt` ảnh mô tả đúng nội dung; giữ nguyên `src`.
-   - 2–4 liên kết nội bộ có anchor mô tả (xem skill `internal-linking`).
-3. Giữ nguyên mọi dữ kiện, con số giá, bảng, ảnh, liên kết sẵn có. Không đổi alias.
-4. Nêu căn cứ cho từng thay đổi (lỗi nào trong audit, vì sao) trong `summary` / `note`.
+Process:
+1. Read the page (`content/<type>/<id>.md`) and the page's entry in `seo/audit.md`; identify the main keyword (prefer `seo/keywords.md`; if there is none, infer it from the title and say clearly that it is inferred).
+2. Score against the checklist, and fix only what is actually wrong:
+   - Title 30–60 characters, main keyword in the first half, has a differentiator (not just a repeat of the page name).
+   - Description 120–160 characters, includes the main keyword, ends with a benefit or a call to action; not the same as the title.
+   - A single H1 (already the page name); the body uses only H2/H3; the main keyword or a variant appears in at least one H2.
+   - Main keyword within the first 100 words; natural density, no stuffing.
+   - Short paragraphs (≤ 4 sentences), lists for enumerations; an FAQ section if the page has real frequently asked questions.
+   - Image `alt` accurately describes the content; keep `src` unchanged.
+   - 2–4 internal links with descriptive anchors (see the `internal-linking` skill).
+3. Keep all existing facts, price figures, tables, images and links. Do not change the alias.
+4. State the reason for each change (which audit issue, why) in `summary` / `note`.

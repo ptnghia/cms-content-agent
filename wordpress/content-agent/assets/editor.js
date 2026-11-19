@@ -88,7 +88,7 @@
     var mode = useState(hasContent ? 'optimize' : 'new');
     var brief = useState('');
     var keyword = useState('');
-    var length = useState('vua');
+    var length = useState('medium');
     var scope = useState('all');
     var busy = useState(false);
     var chars = useState(0);
@@ -129,7 +129,7 @@
         h(C.TextControl, { label: t.keyword, value: keyword[0], onChange: keyword[1] }),
         mode[0] === 'new'
           ? h(C.SelectControl, { label: t.length, value: length[0], onChange: length[1],
-              options: [{ label: t.short, value: 'ngan' }, { label: t.medium, value: 'vua' }, { label: t.long, value: 'dai' }] })
+              options: [{ label: t.short, value: 'short' }, { label: t.medium, value: 'medium' }, { label: t.long, value: 'long' }] })
           : h(C.SelectControl, { label: t.scope, value: scope[0], onChange: scope[1],
               options: [{ label: t.scopeAll, value: 'all' }, { label: t.scopeSeo, value: 'seo' }, { label: t.scopeContent, value: 'content' }] }),
         busy[0]

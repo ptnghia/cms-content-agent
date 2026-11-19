@@ -17,7 +17,7 @@ final class Admin {
 		add_action( 'admin_menu', array( self::class, 'menu' ) );
 		add_action( 'admin_post_content_agent_decide', array( self::class, 'handle_decide' ) );
 		add_action( 'admin_post_content_agent_settings', array( self::class, 'handle_settings' ) );
-		add_action( 'admin_footer', array( self::class, 'widget' ) );
+		add_action( 'admin_enqueue_scripts', array( self::class, 'widget' ) );
 		add_action( 'wp_ajax_content_agent_token', array( self::class, 'ajax_token' ) );
 		add_action( 'wp_ajax_content_agent_upload', array( self::class, 'ajax_upload' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( CONTENT_AGENT_FILE ), array( self::class, 'action_links' ) );
@@ -69,22 +69,21 @@ final class Admin {
 		);
 	}
 
+	/** Chat widget in wp-admin: widget.js is served by the backend (the external service configured in Settings). */
 	public static function widget(): void {
 		$s = Settings::get();
 		if ( ! $s['widget_enabled'] || ! Settings::is_connected() || ! self::can_chat() ) {
 			return;
 		}
-		$attrs = array(
-			'src'             => trailingslashit( $s['backend_url'] ) . 'widget.js',
-			'data-token-url'  => self::ajax_url( 'content_agent_token' ),
-			'data-title'      => '' !== $s['assistant_name'] ? $s['assistant_name'] : __( 'Content assistant', 'content-agent' ),
-			'data-upload-url' => current_user_can( 'upload_files' ) ? self::ajax_url( 'content_agent_upload' ) : '',
+		$opts = array(
+			'api'       => untrailingslashit( $s['backend_url'] ),
+			'tokenUrl'  => self::ajax_url( 'content_agent_token' ),
+			'title'     => '' !== $s['assistant_name'] ? $s['assistant_name'] : __( 'Content assistant', 'content-agent' ),
+			'uploadUrl' => current_user_can( 'upload_files' ) ? self::ajax_url( 'content_agent_upload' ) : '',
+			'lang'      => substr( get_user_locale(), 0, 2 ),
 		);
-		echo '<script';
-		foreach ( array_filter( $attrs ) as $k => $v ) {
-			echo ' ' . esc_attr( $k ) . '="' . esc_attr( $v ) . '"';
-		}
-		echo ' defer></script>' . "\n";
+		wp_enqueue_script( 'content-agent-widget', trailingslashit( $s['backend_url'] ) . 'widget.js', array(), CONTENT_AGENT_VERSION, true );
+		wp_add_inline_script( 'content-agent-widget', 'window.ContentAgent && window.ContentAgent.mount(' . wp_json_encode( array_filter( $opts ) ) . ');' );
 	}
 
 	public static function ajax_token(): void {

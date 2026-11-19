@@ -1,5 +1,5 @@
-// Đồng bộ dữ liệu website -> workspace của agent, qua API của website (xem docs/SITE_API.md).
-// Agent chỉ ĐỌC kết quả (posts/index.json, posts/index.md); không tự gọi mạng hay chạy lệnh.
+// Sync website data into the agent's workspace through the website API (docs/SITE_API.md).
+// The agent only READS the result (posts/index.json, posts/index.md, ...); it never calls the network itself.
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { ensureWorkspace } from './store.mjs';
@@ -32,14 +32,14 @@ const STALE_DAYS = 180;
 const THIN_WORDS = 600;
 const LIST_LIMIT = 50;
 
-/** Thống kê tính sẵn để agent không phải chạy lệnh/đếm thủ công. */
+/** Precomputed stats so the agent does not have to count by hand. */
 function buildStats(posts, syncedAt) {
   const now = Date.parse(syncedAt);
-  const by = (fn) => posts.reduce((m, p) => { const k = fn(p) || '(trống)'; m.set(k, (m.get(k) || 0) + 1); return m; }, new Map());
+  const by = (fn) => posts.reduce((m, p) => { const k = fn(p) || '(empty)'; m.set(k, (m.get(k) || 0) + 1); return m; }, new Map());
   const table = (m) => [...m].sort((a, b) => b[1] - a[1]).map(([k, v]) => `| ${esc(k)} | ${v} |`).join('\n');
   const list = (arr) => arr.length
     ? arr.slice(0, LIST_LIMIT).map((p) => `#${p.id} ${esc(p.title)}`).join('; ') + (arr.length > LIST_LIMIT ? `; … (+${arr.length - LIST_LIMIT})` : '')
-    : '(không có)';
+    : '(none)';
   const published = posts.filter((p) => p.status === 'published');
   const missingTitle = posts.filter((p) => !p.meta_title);
   const missingDesc = posts.filter((p) => !p.meta_description);
@@ -49,25 +49,25 @@ function buildStats(posts, syncedAt) {
   const avg = words.length ? Math.round(words.reduce((a, b) => a + b, 0) / words.length) : 0;
 
   return [
-    `# Thống kê bài viết — đồng bộ ${syncedAt}`,
+    `# Post statistics — synced ${syncedAt}`,
     '',
-    `- Tổng số bài: **${posts.length}**`,
-    `- Số từ trung bình: **${avg}**`,
-    `- Thiếu meta_title: **${missingTitle.length}**`,
-    `- Thiếu meta_description: **${missingDesc.length}**`,
-    `- Bài đã đăng nội dung mỏng (< ${THIN_WORDS} từ): **${thin.length}**`,
-    `- Bài đã đăng chưa cập nhật > ${STALE_DAYS} ngày: **${stale.length}**`,
+    `- Total posts and pages: **${posts.length}**`,
+    `- Average words: **${avg}**`,
+    `- Missing meta_title: **${missingTitle.length}**`,
+    `- Missing meta_description: **${missingDesc.length}**`,
+    `- Published with thin content (< ${THIN_WORDS} words): **${thin.length}**`,
+    `- Published and not updated for > ${STALE_DAYS} days: **${stale.length}**`,
     '',
-    '## Theo trạng thái', '| Trạng thái | Số bài |', '|---|---|', table(by((p) => p.status)),
+    '## By status', '| Status | Count |', '|---|---|', table(by((p) => p.status)),
     '',
-    '## Theo chuyên mục', '| Chuyên mục | Số bài |', '|---|---|',
+    '## By category', '| Category | Count |', '|---|---|',
     table(by((p) => (Array.isArray(p.categories) ? p.categories[0] : p.categories))),
     '',
-    '## Danh sách cần xử lý',
-    `- Thiếu meta_title: ${list(missingTitle)}`,
-    `- Thiếu meta_description: ${list(missingDesc)}`,
-    `- Nội dung mỏng: ${list(thin)}`,
-    `- Lâu chưa cập nhật: ${list(stale)}`,
+    '## To fix',
+    `- Missing meta_title: ${list(missingTitle)}`,
+    `- Missing meta_description: ${list(missingDesc)}`,
+    `- Thin content: ${list(thin)}`,
+    `- Not updated for a long time: ${list(stale)}`,
     '',
   ].join('\n');
 }
@@ -83,21 +83,21 @@ export function syncPosts(siteId, site) {
 }
 
 async function doSync(siteId, site) {
-  if (!site.api?.base || !site.api?.key) throw new Error('Site chưa cấu hình api.base/api.key');
+  if (!site.api?.base || !site.api?.key) throw new Error('Site has no api.base / api.key');
   const ws = await ensureWorkspace(siteId);
   return withUnlocked(ws, () => syncInto(ws, site));
 }
 
 async function syncInto(ws, site) {
   const full = [];
-  const withContent = hasFeature(site, 'content');   // lấy luôn nội dung trong cùng lượt (site hỗ trợ ?include=content)
+  const withContent = hasFeature(site, 'content');   // fetch content in the same pass (?include=content)
   for (let page = 1; page <= MAX_PAGES; page++) {
     const data = await apiGet(site, `/posts?page=${page}&per_page=${PAGE_SIZE}${withContent ? '&include=content' : ''}`);
-    if (!Array.isArray(data.items)) throw new Error('Site API /posts: thiếu "items"');
+    if (!Array.isArray(data.items)) throw new Error('Site API /posts: missing "items"');
     full.push(...data.items);
     if (!data.next_page) break;
   }
-  // index.json chỉ giữ siêu dữ liệu; nội dung đầy đủ ghi riêng ở content/posts/<id>.md (content-sync.mjs)
+  // index.json keeps metadata only; full content goes to content/posts/<id>.md (content-sync.mjs)
   const posts = full.map(({ content_html, excerpt, ...meta }) => meta);
   const syncedAt = new Date().toISOString();
   const dir = path.join(ws, 'posts');
@@ -106,8 +106,8 @@ async function syncInto(ws, site) {
   const rows = posts.map((p) =>
     `| ${esc(p.id)} | ${esc(p.title)} | ${esc(p.status)} | ${esc(p.published_at?.slice(0, 10))} | ${esc(p.updated_at?.slice(0, 10))} | ${esc(p.word_count)} | ${esc(p.url)} |`);
   await atomicWrite(path.join(dir, 'index.md'),
-    `# Danh sách bài viết (${posts.length}) — đồng bộ ${syncedAt}\n\n` +
-    `| ID | Tiêu đề | Trạng thái | Đăng | Cập nhật | Số từ | URL |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`);
+    `# Posts and pages (${posts.length}) — synced ${syncedAt}\n\n` +
+    `| ID | Title | Status | Published | Updated | Words | URL |\n|---|---|---|---|---|---|---|\n${rows.join('\n')}\n`);
   await atomicWrite(path.join(dir, 'stats.md'), buildStats(posts, syncedAt));
   const extended = Array.isArray(site.api.features) && site.api.features.length ? await syncExtended(site, ws, full) : {};
   return { syncedAt, count: posts.length, ...extended };

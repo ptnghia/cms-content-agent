@@ -107,7 +107,7 @@ export function runAppTests(driver) {
     const j = await r.json();
     assert.equal(j.count, 2);
     const ws = path.join(dataDir, 'sites', 'main');
-    assert.match(readFileSync(path.join(ws, 'posts', 'stats.md'), 'utf8'), /Tổng số bài: \*\*2\*\*/);
+    assert.match(readFileSync(path.join(ws, 'posts', 'stats.md'), 'utf8'), /Total posts and pages: \*\*2\*\*/);
     assert.ok(existsSync(path.join(ws, 'site', 'inventory.md')));
     const st = await (await api('/api/status')).json();
     assert.equal(st.posts.count, 2);
@@ -174,7 +174,7 @@ export function runAppTests(driver) {
     try {
       const { events } = await chat({ message: 'ghi đè' });
       assert.match(events.filter((e) => e.type === 'delta').map((e) => e.text).join(''), /write failed: EACCES/);
-      assert.match(readFileSync(path.join(dataDir, 'sites', 'main', 'posts', 'stats.md'), 'utf8'), /Tổng số bài/);
+      assert.match(readFileSync(path.join(dataDir, 'sites', 'main', 'posts', 'stats.md'), 'utf8'), /Total posts and pages/);
     } finally {
       process.env.FAKE_MODE = 'ok';
     }
