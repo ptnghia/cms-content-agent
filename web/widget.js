@@ -1,11 +1,11 @@
 /*!
- * Agy Chat widget — nhúng vào trang admin bằng một thẻ <script>.
+ * cms-content-agent chat widget — nhúng vào trang admin bằng một thẻ <script>.
  *
  *   <script src="https://AGENT-HOST/widget.js"
- *           data-token-url="/admin/agy-token.php"   (endpoint PHP trả {"token": "..."} ; hoặc data-token="...")
- *           data-upload-url="/admin/agy-upload.php" (tuỳ chọn: bật nút 📎 đính kèm hình; endpoint nhận images[] và trả {"files":[{file,name,w,h}]})
+ *           data-token-url="/admin/token.php"   (endpoint PHP trả {"token": "..."} ; hoặc data-token="...")
+ *           data-upload-url="/admin/upload.php" (tuỳ chọn: bật nút 📎 đính kèm hình; endpoint nhận images[] và trả {"files":[{file,name,w,h}]})
  *           data-mode="floating"                    (floating | inline)
- *           data-target="#agy-chat"                 (chỉ khi inline)
+ *           data-target="#agent-chat"                 (chỉ khi inline)
  *           data-title="Trợ lý nội dung"></script>
  *
  * Toàn bộ UI nằm trong Shadow DOM nên không xung đột CSS/JS với trang admin.
@@ -56,10 +56,10 @@
     '.status{align-self:flex-start;max-width:92%;background:var(--bot);padding:8px 12px;border-radius:12px;display:flex;flex-direction:column;gap:3px}',
     '.status .line{display:flex;align-items:center;gap:8px}',
     '.status .dots{display:inline-flex;gap:3px;flex:none}',
-    '.status .dots i{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.3;animation:agyb 1.2s infinite ease-in-out}',
+    '.status .dots i{width:6px;height:6px;border-radius:50%;background:var(--accent);opacity:.3;animation:cabounce 1.2s infinite ease-in-out}',
     '.status .dots i:nth-child(2){animation-delay:.15s}.status .dots i:nth-child(3){animation-delay:.3s}',
     '.status small{color:var(--muted);font-size:11px;line-height:1.4}',
-    '@keyframes agyb{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}',
+    '@keyframes cabounce{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}',
     '@media(prefers-reduced-motion:reduce){.status .dots i{animation:none;opacity:.7}}',
     // đính kèm hình
     '.attach{display:flex;flex-wrap:wrap;gap:8px;padding:8px 10px 0;background:var(--panel);border-top:1px solid var(--border)}',
@@ -131,7 +131,7 @@
   function mount(opts) {
     var scriptOrigin = opts.api || '';
     var api = scriptOrigin.replace(/\/$/, '');
-    var storeKey = 'agychat:' + (api || location.origin);
+    var storeKey = 'cms-agent:' + (api || location.origin);
     var host = document.createElement('div');
     var shadow = host.attachShadow({ mode: 'open' });
     var mode = opts.mode === 'inline' ? 'inline' : 'floating';
@@ -139,7 +139,7 @@
     var target = null;
     if (mode === 'inline') {
       target = opts.target ? document.querySelector(opts.target) : null;
-      if (!target) { console.error('[AgyChat] không tìm thấy data-target:', opts.target); return; }
+      if (!target) { console.error('[ContentAgent] không tìm thấy data-target:', opts.target); return; }
       host.style.cssText = 'display:block;width:100%;height:100%';
       target.appendChild(host);
     } else {
@@ -460,7 +460,7 @@
     return { api: origin, token: d.token, tokenUrl: d.tokenUrl, uploadUrl: d.uploadUrl, mode: d.mode, target: d.target, title: d.title };
   }
 
-  window.AgyChat = { mount: mount };
+  window.ContentAgent = window.AgyChat = { mount: mount };   // AgyChat kept for older embeds
   var cs = document.currentScript;
   if (cs && cs.dataset.auto !== 'false') {
     var go = function () { mount(fromScript(cs)); };

@@ -1,4 +1,4 @@
-# Kế hoạch triển khai
+# Lộ trình (roadmap)
 
 Trạng thái: [x] xong · [ ] chưa làm
 
@@ -11,7 +11,7 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [x] Workspace theo site: `posts/`, `plans/`, `drafts/`, `knowledge/`, `notes.md`
 - [x] Đồng bộ bài viết qua API website (phân trang) + `posts/stats.md` tính sẵn
 - [x] Widget Shadow DOM (floating / inline), markdown an toàn, Dừng, Hội thoại mới, nút Đồng bộ, khôi phục lịch sử
-- [x] Mẫu PHP: `AgyChat.php`, `agy-token.php`, `embed-example.php`; tài liệu `SITE_API.md`, `DEPLOY.md`
+- [x] Mẫu PHP: `ContentAgent.php`, `token.php`, `embed-example.php`; tài liệu `SITE_API.md`, `DEPLOY.md`
 - [x] Giới hạn: 1 lượt/hội thoại, `MAX_CONCURRENT` lượt toàn máy, độ dài tin nhắn
 
 **Phát hiện kỹ thuật:** agy headless ghi file được nhưng **tự từ chối chạy lệnh** (phản hồi rỗng, vẫn `SUCCESS`).
@@ -33,21 +33,30 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [ ] Endpoint `POST /drafts` phía website; nút "Gửi lên CMS (nháp)" trong widget cho từng file `drafts/*.md`
 - [ ] Panel xem `plans/` và `drafts/` trong widget
 
-## Giai đoạn 3b/4b — Nội dung đầy đủ + đề xuất qua outbox (XONG cho site có `api.features`, thử trên demo-site)
+## Giai đoạn 3b/4b — Nội dung đầy đủ + đề xuất qua outbox (XONG cho site có `api.features`)
 - [x] Đồng bộ nội dung đầy đủ bài viết / sản phẩm / danh mục, từ khoá, kết quả kiểm tra SEO, `site/inventory.md` chống trùng
 - [x] `agent/system-prompt-content.md`: quy trình tối ưu bài cũ & viết bài mới không trùng, định dạng file đề xuất
 - [x] `outbox/` → backend `POST /proposals` sau mỗi lượt, báo kết quả + link duyệt trong khung chat; `outbox/STATUS.md`
 - [x] Website duyệt (Áp dụng / Từ chối / Hoàn tác) — agent không bao giờ ghi thẳng nội dung
 
-## Giai đoạn 5 — Vận hành & bảo mật
-- [ ] Giới hạn tần suất theo uid, nhật ký sử dụng + chi phí token mỗi lượt
-- [ ] Chuyển lưu trữ sang SQLite khi số hội thoại lớn (hiện: file JSON)
-- [ ] Rà soát quyền: allow-rule chỉ-đọc cho agy nếu cần phân tích nặng
-- [ ] Đồng bộ định kỳ (`SYNC_INTERVAL_MIN`), cảnh báo khi đồng bộ lỗi
-- [ ] Hủy/giới hạn quyền ghi: chỉ `plans/`, `drafts/`, `notes.md` (hiện agent có thể ghi cả workspace)
+## Giai đoạn 5 — Vận hành & bảo mật (XONG, v0.3.0)
+- [x] Giới hạn tần suất theo uid (`CHAT_PER_HOUR`, `COMPOSE_PER_HOUR`, trả `429` + `Retry-After`)
+- [x] Nhật ký sử dụng mỗi yêu cầu: token, token cache, chi phí USD (Claude Code), thời gian, số lượt CLI → `GET /api/usage`
+- [x] Lưu trữ SQLite (`STORE_DRIVER=sqlite`, `node:sqlite`) + `npm run migrate:sqlite`
+- [x] Đồng bộ định kỳ + cảnh báo webhook khi lỗi liên tiếp / khi hồi phục; `/api/status` báo tình trạng đồng bộ
+- [x] Giới hạn quyền ghi: dữ liệu đồng bộ và sổ sách outbox chỉ-đọc giữa các lần đồng bộ (`WORKSPACE_LOCK`)
+- [x] Adapter Claude Code; tắt công cụ shell/mạng mặc định cho mọi CLI
+
+## Giai đoạn 6 — Mở rộng cho cộng đồng (đang mở, xem issues)
+- [ ] Quốc tế hoá: prompt, skill và chuỗi giao diện widget theo `site.language` (hiện chỉ có tiếng Việt)
+- [ ] Panel trong widget: xem `plans/`, `drafts/`, đề xuất đang chờ duyệt, usage
+- [ ] Endpoint mẫu phía website cho WordPress (plugin) và Laravel, ngoài mẫu PHP thuần
+- [ ] Kết nối Google Search Console → `seo/queries.md`
+- [ ] Giới hạn tần suất dùng chung khi chạy nhiều instance (SQLite / Redis)
+- [ ] Ngân sách chi phí theo site (chặn khi vượt `costUsd` tháng)
 
 ## Rủi ro đã biết
-- Mỗi lượt ~10–60 giây; widget hiển thị stream và trạng thái.
-- agy là tiến trình riêng mỗi lượt: tốn RAM/CPU, nên đặt `MAX_CONCURRENT` hợp lý theo cấu hình VPS.
-- Agent có quyền ghi trong workspace site (kể cả `posts/`): dữ liệu đồng bộ bị ghi đè ở lần sync sau, nhưng cần siết quyền ở Giai đoạn 5.
-- Nội dung do mô hình sinh ra phải được người duyệt trước khi đăng.
+- Mỗi lượt mất khoảng 10–60 giây. Widget hiển thị stream và trạng thái.
+- Mỗi lượt là một tiến trình CLI riêng, tốn RAM/CPU, nên đặt `MAX_CONCURRENT` theo cấu hình máy.
+- Khoá chỉ-đọc dựa trên quyền file: không có tác dụng khi chạy bằng root hoặc trên Windows, và một CLI được phép chạy lệnh shell có thể gỡ khoá. Vì vậy giữ công cụ shell ở trạng thái tắt.
+- Nội dung do mô hình sinh ra phải được người duyệt trước khi đăng (đã bắt buộc qua hàng chờ đề xuất).
