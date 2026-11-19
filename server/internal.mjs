@@ -141,6 +141,14 @@ export function createInternalRouter({ token, tasks, provider, store, runTurn, g
       sendJson(res, 200, { result: parsed.value, usage });
     } catch (e) {
       status = ac.signal.aborted ? 'CANCELLED' : 'ERROR';
+      if (e && e.usage) {
+        // Tokens spent before the failure are still a cost (api adapter).
+        usage.turns = 1;
+        usage.backend = e.backend || '';
+        usage.model = e.usage.model || '';
+        usage.status = 'ERROR';
+        for (const k of ['inputTokens', 'outputTokens', 'cachedTokens', 'costUsd']) usage[k] = Number(e.usage[k]) || 0;
+      }
       console.error(`[internal] task ${name} ${siteId}: ${e.message}`);
       if (!res.headersSent) sendJson(res, 502, { error: 'task_failed' });
     } finally {

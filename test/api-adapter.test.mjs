@@ -114,6 +114,24 @@ test('api adapter: per-turn model wins over API_MODEL, and onEvent is optional',
   }
 });
 
+test('api adapter: a failure after some rounds still reports the tokens spent', async () => {
+  const api = await startFakeMessagesApi([
+    [{ type: 'tool_use', name: 'read_file', input: { path: 'posts/stats.md' } }],
+    { httpError: 400 },
+  ]);
+  process.env.API_SESSIONS_DIR = tmp();
+  _setClient(new Anthropic({ apiKey: 'test', baseURL: api.url, maxRetries: 0 }));
+  try {
+    const err = await runTurn({ prompt: 'Read everything', cwd: workspace(), model: 'claude-sonnet-5-5' }).catch((e) => e);
+    assert.match(err.message, /^api: /);
+    assert.equal(err.backend, 'api');
+    assert.equal(err.usage.inputTokens, 150, 'the first, successful response is counted');
+    assert.ok(err.usage.costUsd > 0);
+  } finally {
+    await api.close();
+  }
+});
+
 test('api adapter: cost table', () => {
   assert.equal(costOf('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
   assert.equal(costOf('claude-opus-5-5', { cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6 }), 0.2 + 5);

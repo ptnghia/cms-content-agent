@@ -79,7 +79,10 @@ Every AI turn (chat, compose, internal task) calls:
 - `runTurn` gets the turn context (`site`, `siteId`, `kind`, `requestId`) next to the prompt, so a wrapper can choose
   e.g. `model` per customer (the `api` adapter honours `opts.model`). Usage records passed to the store carry the same
   `requestId`; chat's `afterTurn` also gets `conversationId`. Refusal codes `rate_limited` / `server_busy` answer 429.
-- Both hooks give up after `hookTimeoutMs` (default 10 s): a hanging `beforeTurn` answers 503 `turn_check_failed`, so
+- A turn that fails after spending tokens still reports them (`status: 'ERROR'`, non-zero `usage`): charge it.
+- Both hooks give up after `hookTimeoutMs`. If `beforeTurn` answers yes after the timeout, `afterTurn` follows with
+  `status: 'CANCELLED'` and zero usage, so whatever it reserved can be released.
+- Hooks after the timeout: (default 10 s): a hanging `beforeTurn` answers 503 `turn_check_failed`, so
   a stuck billing store cannot hold the server's concurrency slots.
 - The built-in per-user rate limit (`CHAT_PER_HOUR`, `COMPOSE_PER_HOUR`) is taken before `beforeTurn`, so refused turns
   count towards it.

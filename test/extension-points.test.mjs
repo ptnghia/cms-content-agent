@@ -430,3 +430,37 @@ test('internal tasks pass onEvent and the turn context to runTurn', async () => 
     assert.deepEqual((await res.json()).result, { kind: 'task:seo-plan', site: 'a' });
   } finally { await close(); }
 });
+
+test('a turn that fails after spending tokens is still metered and reported to afterTurn', async () => {
+  const usage = [];
+  const after = [];
+  const failing = async () => { const e = new Error('api: prompt is too long'); e.usage = USAGE; e.backend = 'api'; throw e; };
+  const inner = createFileStore({ dataDir: tmp() });
+  const store = { ...inner, recordUsage: async (e) => { usage.push(e); return inner.recordUsage(e); } };
+  const { base, close } = await start({ sites: { a: site() }, store, runTurn: failing, afterTurn: async (ctx) => { after.push(ctx); } });
+  try {
+    const events = await readSse(await chat(base));
+    assert.equal(events.at(-1).type, 'error');
+    await until(() => after.length);
+    assert.equal(after[0].status, 'ERROR');
+    assert.equal(after[0].usage.costUsd, 0.002, 'tokens spent before the failure are charged');
+    assert.ok(after[0].usage.turns >= 1);
+    assert.equal(usage[0]?.costUsd, 0.002);
+  } finally { await close(); }
+});
+
+test('a beforeTurn that says yes after its timeout gets an afterTurn to release what it took', async () => {
+  const after = [];
+  let resolveLate;
+  const { base, close } = await start({
+    sites: { a: site() }, store: createFileStore({ dataDir: tmp() }), runTurn: fakeRunTurn(), hookTimeoutMs: 30,
+    beforeTurn: () => new Promise((r) => { resolveLate = () => r({ ok: true }); }),
+    afterTurn: async (ctx) => { after.push(ctx.status); },
+  });
+  try {
+    assert.equal((await chat(base)).status, 503);
+    resolveLate();
+    await until(() => after.length);
+    assert.deepEqual(after, ['CANCELLED']);
+  } finally { await close(); }
+});

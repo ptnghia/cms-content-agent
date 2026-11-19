@@ -52,6 +52,13 @@ function lazyDefaultStore() {
   };
 }
 
+/** Usage of an attempt that threw (the api adapter attaches what it spent), so a failed turn is still metered. */
+function addFailedUsage(meter, err) {
+  if (err && typeof err === 'object' && err.usage) meter.add({ usage: err.usage, backend: err.backend, status: 'ERROR' });
+}
+
+const zeroUsage = () => ({ turns: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0, backend: '', model: '', status: 'UNKNOWN' });
+
 /** HTTP status for the codes a beforeTurn hook may refuse with. */
 const REFUSAL_STATUS = { insufficient_credits: 402, plan_expired: 402, site_locked: 423, site_inactive: 423, rate_limited: 429, server_busy: 429 };
 
@@ -121,8 +128,9 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
   /** beforeTurn wrapper: {ok:true} or the HTTP answer for a refusal. */
   async function gateTurn(ctx) {
     if (!beforeTurn) return { ok: true };
+    const pending = Promise.resolve().then(() => beforeTurn(ctx));
     try {
-      const r = await withTimeout(Promise.resolve(beforeTurn(ctx)), 'beforeTurn');
+      const r = await withTimeout(pending, 'beforeTurn');
       if (r && r.ok === false) {
         const code = r.code || 'turn_refused';
         return { ok: false, status: REFUSAL_STATUS[code] ?? 403, body: { error: code, ...(r.message ? { message: r.message } : {}) } };
@@ -130,6 +138,11 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
       return { ok: true };
     } catch (e) {
       console.error(`[beforeTurn] ${ctx.siteId}: ${e.message}`);
+      // A hook that answers after the timeout may have reserved slots or credits: if it said yes,
+      // end that turn (nothing ran) so the host releases them.
+      pending.then((late) => {
+        if (!late || late.ok !== false) return finishTurn({ ...ctx, usage: zeroUsage(), status: 'CANCELLED' });
+      }, () => {});
       return { ok: false, status: 503, body: { error: 'turn_check_failed' } };
     }
   }
@@ -292,7 +305,7 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
             if (ev.type === 'init') conv.agentSessionId = ev.sessionId;
             else if (ev.type === 'delta' || ev.type === 'step') send(ev);
           },
-        });
+        }).catch((err) => { addFailedUsage(meter, err); throw err; });
         meter.add(out);
         if (out.sessionId) conv.agentSessionId = out.sessionId;
         return { out };
@@ -408,7 +421,7 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
             else if (ev.type === 'delta') { chars += ev.text.length; send({ type: 'progress', chars }); }
             else if (ev.type === 'step') send({ type: 'step', stepType: ev.stepType, state: ev.state });
           },
-        });
+        }).catch((err) => { addFailedUsage(meter, err); throw err; });
         meter.add(out);
         sid = out.sessionId || sid;
         return out;

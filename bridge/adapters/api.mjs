@@ -162,7 +162,11 @@ export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent = 
     closeDanglingToolUses(messages, signal?.aborted ? 'cancelled by the user' : 'interrupted');
     await saveSession(sid, session).catch(() => {});
     if (signal?.aborted) return { sessionId: sid, response, status: 'CANCELLED', denied: [], usage };
-    throw new Error(`api: ${err.message}`);
+    // Tokens spent before the failure are still a cost: hand them to the caller with the error.
+    const failure = new Error(`api: ${err.message}`);
+    failure.usage = usage;
+    failure.backend = 'api';
+    throw failure;
   }
   await saveSession(sid, session);
   return { sessionId: sid, response, status, denied: [], usage };

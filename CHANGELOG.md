@@ -13,6 +13,11 @@
 
 ### Fixed
 - Internal JSON tasks crashed with the real `api` adapter (no `onEvent` was passed); `onEvent` is now optional there.
+- A turn that failed after spending tokens (e.g. "prompt is too long" at the tenth tool round) reported no usage, so it
+  was neither recorded nor charged: the `api` adapter now attaches the usage spent to its error and the app meters it
+  (chat, compose, tasks).
+- A `beforeTurn` that answered after `hookTimeoutMs` could keep what it reserved: when it later says yes, `afterTurn` is
+  called with `status: 'CANCELLED'` and zero usage so the host releases it.
 
 ## 0.6.0 — Extension points for hosted services
 
