@@ -17,8 +17,8 @@ jobs:
       matrix:
         node: [22.x, 24.x]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - run: npm run check
@@ -32,7 +32,7 @@ jobs:
       matrix:
         php: ['7.4', '8.3']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -42,7 +42,7 @@ jobs:
       - name: Build plugin zip
         if: matrix.php == '8.3'
         run: npm run build:wp
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.php == '8.3'
         with:
           name: content-agent-plugin
@@ -51,7 +51,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: docker build --build-arg INSTALL_CLAUDE=0 -t cms-content-agent:ci .
       - name: Start and probe /api/health
