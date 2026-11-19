@@ -10,7 +10,7 @@
 // - Refusal fallback: server-side fallbacks ("default") are on; API_FALLBACKS=0 turns them off.
 // - Cost: computed from response.usage and the price table below (estimate; set API_PRICES to override).
 //
-// Credentials: ANTHROPIC_API_KEY (or any credential the SDK resolves). Model: API_MODEL (default claude-opus-5-5).
+// Credentials: ANTHROPIC_API_KEY (or any credential the SDK resolves). Model: opts.model, else API_MODEL (default claude-opus-5-5).
 import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
@@ -81,8 +81,9 @@ function closeDanglingToolUses(messages, reason) {
 }
 
 /** @type {import('../index.mjs').RunTurn} */
-export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent, signal }) {
-  const model = process.env.API_MODEL || 'claude-opus-5-5';
+export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent = () => {}, signal, model: requestedModel }) {
+  // A host may pick the model per turn (e.g. by the customer's plan); API_MODEL is the default.
+  const model = requestedModel || process.env.API_MODEL || 'claude-opus-5-5';
   const effort = process.env.API_EFFORT || 'medium';
   const maxRounds = envNum('API_MAX_TOOL_ROUNDS', 40);
   const maxTokens = envNum('API_MAX_TOKENS', 64000);

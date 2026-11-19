@@ -99,6 +99,21 @@ test('api adapter: tool loop, streaming, caching, cost, resume', async () => {
   }
 });
 
+test('api adapter: per-turn model wins over API_MODEL, and onEvent is optional', async () => {
+  const api = await startFakeMessagesApi([[{ type: 'text', text: '{"ok":true}' }]]);
+  process.env.API_SESSIONS_DIR = tmp();
+  process.env.API_MODEL = 'claude-sonnet-5-5';
+  _setClient(new Anthropic({ apiKey: 'test', baseURL: api.url, maxRetries: 0 }));
+  try {
+    const out = await runTurn({ prompt: 'JSON please', cwd: workspace(), model: 'claude-opus-5-5' });
+    assert.equal(out.status, 'SUCCESS');
+    assert.equal(api.requests[0].body.model, 'claude-opus-5-5');
+  } finally {
+    await api.close();
+    delete process.env.API_MODEL;
+  }
+});
+
 test('api adapter: cost table', () => {
   assert.equal(costOf('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
   assert.equal(costOf('claude-opus-5-5', { cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6 }), 0.2 + 5);

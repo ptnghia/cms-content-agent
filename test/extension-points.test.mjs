@@ -385,3 +385,48 @@ test('internal tasks share the concurrency limit, drop outbox files and reject n
     assert.ok(usage.requests >= 2, 'task usage is recorded');
   } finally { await close(); }
 });
+
+test('turn context reaches runTurn and usage records, and limits answer 429', async () => {
+  const runTurn = fakeRunTurn();
+  const usage = [];
+  const after = [];
+  const inner = createFileStore({ dataDir: tmp() });
+  const store = { ...inner, recordUsage: async (e) => { usage.push(e); return inner.recordUsage(e); } };
+  let refuse = false;
+  const { base, close } = await start({
+    sites: { a: site() }, store, runTurn,
+    beforeTurn: async () => (refuse ? { ok: false, code: 'rate_limited', message: 'Chậm lại' } : { ok: true }),
+    afterTurn: async (ctx) => { after.push(ctx); },
+  });
+  try {
+    await readSse(await chat(base));
+    await until(() => after.length);
+    const [call] = runTurn.calls;
+    assert.equal(call.siteId, 'a');
+    assert.equal(call.kind, 'chat');
+    assert.equal(call.site.name, 'Site A');
+    assert.equal(call.requestId, after[0].requestId);
+    assert.equal(usage[0].requestId, after[0].requestId, 'usage row and charge share the request id');
+    assert.ok(after[0].conversationId, 'chat afterTurn knows the conversation');
+
+    refuse = true;
+    const res = await chat(base);
+    assert.equal(res.status, 429);
+    assert.deepEqual(await res.json(), { error: 'rate_limited', message: 'Chậm lại' });
+  } finally { await close(); }
+});
+
+test('internal tasks pass onEvent and the turn context to runTurn', async () => {
+  const strict = async (opts) => {
+    opts.onEvent({ type: 'init', sessionId: 'x' }); // the api adapter calls it unconditionally
+    return { response: `{"kind":"${opts.kind}","site":"${opts.siteId}"}`, denied: [], status: 'SUCCESS', usage: USAGE, backend: 'api' };
+  };
+  const { base, close } = await start({ sites: { a: site() }, store: createFileStore({ dataDir: tmp() }), runTurn: strict, internal: { token: INTERNAL } });
+  try {
+    const res = await fetch(`${base}/internal/sites/a/tasks/seo-plan`, {
+      method: 'POST', headers: { Authorization: `Bearer ${INTERNAL}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ input: {} }),
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual((await res.json()).result, { kind: 'task:seo-plan', site: 'a' });
+  } finally { await close(); }
+});

@@ -53,7 +53,7 @@ function lazyDefaultStore() {
 }
 
 /** HTTP status for the codes a beforeTurn hook may refuse with. */
-const REFUSAL_STATUS = { insufficient_credits: 402, plan_expired: 402, site_locked: 423, site_inactive: 423 };
+const REFUSAL_STATUS = { insufficient_credits: 402, plan_expired: 402, site_locked: 423, site_inactive: 423, rate_limited: 429, server_busy: 429 };
 
 /**
  * @param {object} o
@@ -284,6 +284,7 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
         const out = await runTurn({
           prompt,
           cwd: workspace,
+          site, siteId, kind: 'chat', requestId: turn.requestId,
           addDirs: [KNOWLEDGE_DIR, SKILLS_DIR, ...(sourceWorkspace ? [sourceWorkspace] : [])],
           sessionId,
           signal: ac.signal,
@@ -359,11 +360,11 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
       await store.saveConversation(conv).catch(() => {});
       const u = meter.get();
       const status = final ? u.status : (ac.signal.aborted ? 'CANCELLED' : 'ERROR');
-      if (u.turns) await logUsage({ siteId, uid, kind: 'chat', conversationId: conv.id, ...u, status }, startedAt);
+      if (u.turns) await logUsage({ siteId, uid, kind: 'chat', conversationId: conv.id, requestId: turn.requestId, ...u, status }, startedAt);
       activeConvs.delete(conv.id);
       activeCount--;
       res.end();
-      await finishTurn({ ...turn, usage: u, status }); // after the slot and the stream are released
+      await finishTurn({ ...turn, conversationId: conv.id, usage: u, status }); // after the slot and the stream are released
     }
   }
 
@@ -401,6 +402,7 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
       const turn = async (text, resume) => {
         const out = await runTurn({
           prompt: text, cwd: workspace, addDirs: [KNOWLEDGE_DIR, SKILLS_DIR], signal: ac.signal, sessionId: resume,
+          site, siteId, kind: 'compose', requestId: gateCtx.requestId,
           onEvent: (ev) => {
             if (ev.type === 'init') sid = ev.sessionId;
             else if (ev.type === 'delta') { chars += ev.text.length; send({ type: 'progress', chars }); }
@@ -426,7 +428,7 @@ export function createApp({ sites, siteProvider, store: injectedStore, runTurn =
       clearInterval(ping);
       const u = meter.get();
       const status = ok ? u.status : (ac.signal.aborted ? 'CANCELLED' : 'ERROR');
-      if (u.turns) await logUsage({ siteId, uid, kind: 'compose', ...u, status }, startedAt);
+      if (u.turns) await logUsage({ siteId, uid, kind: 'compose', requestId: gateCtx.requestId, ...u, status }, startedAt);
       activeCount--;
       res.end();
       await finishTurn({ ...gateCtx, usage: u, status }); // after the slot and the stream are released
