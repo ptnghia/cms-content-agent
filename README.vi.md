@@ -51,6 +51,7 @@ có plugin SEO, plugin dùng trường SEO riêng của nó.
 | `AGENT_BACKEND` | Stream | Nối tiếp | Usage / chi phí | Ghi chú |
 |---|---|---|---|---|
 | `claude` (mặc định) | từng token | `--resume` | token + USD | mặc định tắt `Bash`, `WebFetch`, `WebSearch` |
+| `api` | từng token | lịch sử lưu ở backend | token + USD | gọi thẳng Claude API (`ANTHROPIC_API_KEY`), không cần cài CLI; agent chỉ ghi được `plans/`, `drafts/`, `outbox/`, `notes.md` |
 | `codex` | câu cuối | `exec resume` | token | sandbox `workspace-write`, không mạng |
 | `agy` | từng token | `--conversation` | theo CLI | headless từ chối chạy lệnh |
 

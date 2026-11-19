@@ -97,8 +97,13 @@ To test the plugin, run WordPress Playground with the plugin mounted:
 | `AGENT_BACKEND` | CLI | Streaming | Resume | Usage / cost | Notes |
 |---|---|---|---|---|---|
 | `claude` (default) | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | tokens | `--resume` | tokens + USD | `Bash`, `WebFetch`, `WebSearch` disabled by default |
+| `api` | none: Claude [Messages API](https://platform.claude.com/docs) via `@anthropic-ai/sdk` | tokens | stored history | tokens + USD (price table) | needs `ANTHROPIC_API_KEY`; file tools confined in code; prompt caching; no CLI process per turn |
 | `codex` | [OpenAI Codex CLI](https://github.com/openai/codex) | final message | `exec resume` | tokens | sandbox `workspace-write`, no network |
 | `agy` | agy | tokens | `--conversation` | as reported | headless mode refuses commands |
+
+`AGENT_BACKEND=api` runs the agent loop inside the backend: no CLI to install or log in, lighter on RAM, and it can
+only write to `plans/`, `drafts/`, `outbox/` and `notes.md` (checked in code, not just by file modes). Pick the model with
+`API_MODEL` (default `claude-opus-5-5`; `claude-sonnet-5-5` costs half).
 
 `AGENT_FALLBACK=codex` retries a failed turn on another CLI. To add a CLI, create `bridge/adapters/<name>.mjs`
 (see `bridge/index.mjs` for the contract).

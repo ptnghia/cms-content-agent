@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+- **`AGENT_BACKEND=api`**: Claude through the Messages API (`@anthropic-ai/sdk`, the project's only npm dependency),
+  no CLI process. The agent loop runs in the backend with file tools (`list_files`, `read_file`, `search`,
+  `write_file`, `edit_file`) confined in code: reads stay inside the workspace and the extra folders (symlinks
+  resolved), writes only to `plans/`, `drafts/`, `outbox/` and `notes.md`. Streaming text, prompt caching, server-side
+  refusal fallback, stored history for resume, cost from a price table (`API_PRICES` to override). Model: `API_MODEL`
+  (default `claude-opus-5-5`), effort: `API_EFFORT`.
+- Docker image installs npm dependencies.
+
 ## 0.5.0 — Any language, field-tested
 
 ### Changed

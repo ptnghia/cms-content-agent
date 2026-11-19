@@ -69,7 +69,8 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [x] Quốc tế hoá prompt / skill / widget
 - [x] Plugin qua Plugin Check (0 lỗi), có mục External services trong readme
 - [ ] Nộp plugin lên wordpress.org (cần tài khoản wordpress.org của chủ dự án)
-- [ ] Adapter gọi thẳng Claude API (prompt caching, không cần tiến trình CLI) để giảm chi phí cố định ~27k token mỗi lượt
+- [x] Adapter gọi thẳng Claude API (`AGENT_BACKEND=api`): prompt caching, không cần tiến trình CLI, công cụ file giới hạn trong code
+- [ ] Đo chi phí thật của `api` so với `claude` CLI trên cùng kịch bản (cần `ANTHROPIC_API_KEY`)
 
 ## Rủi ro đã biết
 - Mỗi lượt mất khoảng 10–60 giây. Widget hiển thị stream và trạng thái.
