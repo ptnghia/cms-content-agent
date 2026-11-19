@@ -1,0 +1,38 @@
+# docker compose up -d                      backend on http://127.0.0.1:3000
+# docker compose --profile dev up           + fake website API (mock-site) for local testing
+services:
+  agent:
+    build:
+      context: .
+      args:
+        INSTALL_CLAUDE: "1"
+        INSTALL_CODEX: "0"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      SITES_FILE: /app/config/sites.json
+    ports:
+      - "127.0.0.1:3000:3000"   # put an HTTPS reverse proxy in front; do not expose publicly as-is
+    volumes:
+      - ./config/sites.json:/app/config/sites.json:ro
+      - agent-data:/data
+      - claude-auth:/home/node/.claude   # `docker compose run --rm agent claude` once to log in
+      - codex-auth:/home/node/.codex     # `docker compose run --rm agent codex login`
+    restart: unless-stopped
+
+  mock-site:
+    profiles: ["dev"]
+    build: .
+    command: ["node", "dev/mock-site.mjs"]
+    environment:
+      MOCK_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:4000:4000"
+
+volumes:
+  agent-data:
+  claude-auth:
+  codex-auth:
