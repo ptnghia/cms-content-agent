@@ -34,10 +34,16 @@ export const config = {
 
 export function loadSites() {
   if (!existsSync(config.sitesFile)) {
-    throw new Error(`Missing ${config.sitesFile} (copy config/sites.example.json)`);
+    throw new Error(`Missing ${config.sitesFile}: create it with {} and paste each site's entry from WordPress → Content Agent → Settings`);
   }
-  const sites = JSON.parse(readFileSync(config.sitesFile, 'utf8'));
+  return parseSites(JSON.parse(readFileSync(config.sitesFile, 'utf8')));
+}
+
+/** Validate the site map. Keys starting with "_" are comments and are dropped. */
+export function parseSites(raw) {
+  const sites = Object.fromEntries(Object.entries(raw || {}).filter(([id]) => !id.startsWith('_')));
   for (const [id, s] of Object.entries(sites)) {
+    if (!s || typeof s !== 'object') throw new Error(`site "${id}" must be an object`);
     if (!/^[a-z0-9_-]{1,40}$/i.test(id)) throw new Error(`Invalid siteId: ${id}`);
     if (!s.tokenSecret || s.tokenSecret.length < 16) throw new Error(`site "${id}": tokenSecret must be at least 16 characters`);
     if (s.translationOf && (!sites[s.translationOf] || s.translationOf === id)) throw new Error(`site "${id}": translationOf "${s.translationOf}" does not exist`);

@@ -1,5 +1,6 @@
 ## Dữ liệu nội dung website (site này bật đồng bộ đầy đủ)
-- `site/inventory.md` — **mọi trang** (bài viết, sản phẩm, danh mục): ID, tiêu đề, slug, từ khoá chính, điểm SEO. Tra ở đây đầu tiên.
+- `site/fields.md` (nếu có) — **trường nào được sửa cho từng loại trang trên website này**. Khi khác với hướng dẫn chung bên dưới, làm theo file này.
+- `site/inventory.md` — **mọi trang** (bài viết, trang, sản phẩm, danh mục): ID, tiêu đề, slug, từ khoá chính, điểm SEO. Tra ở đây đầu tiên.
 - `content/posts/<id>.md`, `content/products/<id>.md`, `content/categories/<id>.md` — nội dung HTML hiện tại + meta + lỗi SEO của từng trang.
 - `products/index.md`, `categories/index.md` — bảng gọn. Giá sản phẩm chỉ để tham khảo.
 - `seo/audit-products.md`, `seo/audit-categories.md` — điểm + lỗi chỉ riêng sản phẩm / danh mục, xếp từ điểm thấp lên (dùng khi người dùng bảo "kiểm tra SEO các sản phẩm / danh mục").
@@ -25,8 +26,8 @@ meta_keywords: "từ khoá chính, từ khoá phụ"
 ---
 <h2>…</h2><p>…</p>   ← phần thân (HTML, hoặc Markdown đơn giản). Bỏ trống nếu chỉ sửa meta.
 ```
-- `type`: `post` | `product` | `category`. `action: create` **chỉ** cho `post` (bài mới) — cần `name`, phần thân, nên có `category_id` (ID danh mục bài viết, xem `categories/index.md`), `meta_title`, `meta_description`, `meta_keywords`; `slug` tuỳ chọn (website tự chống trùng).
-- Trường được sửa: post `name, excerpt, body, meta_title, meta_description, meta_keywords` · product `excerpt, body, body_extra (bài chi tiết), faq, meta_title, meta_description, meta_keywords` · category `excerpt, body, faq, meta_title, meta_description, meta_keywords`.
+- `type`: `post` | `page` | `product` | `category`. `action: create` **chỉ** cho `post` / `page` (bài, trang mới — website tạo ở dạng **nháp**) — cần `name`, phần thân, nên có `category_id` (ID danh mục bài viết, xem `categories/index.md`), `meta_title`, `meta_description`, `meta_keywords`; `slug` tuỳ chọn (website tự chống trùng).
+- Trường được sửa (mặc định; `site/fields.md` là bản chính xác): post / page `name, excerpt, body, meta_title, meta_description, meta_keywords` · product `excerpt, body, body_extra (bài chi tiết), faq, meta_title, meta_description, meta_keywords` · category `excerpt, body, faq, meta_title, meta_description, meta_keywords`.
 - `body_field`: trường nhận phần thân (mặc định `body`; sản phẩm thường là `body_extra`).
 - FAQ dùng file JSON: `{"action":"update","type":"product","id":296,"summary":"…","fields":{"faq":[{"question":"…","answer":"…"}]}}`
 - Giá trị trong front-matter có dấu `:` hoặc `#` thì đặt trong ngoặc kép.

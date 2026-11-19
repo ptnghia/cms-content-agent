@@ -16,8 +16,18 @@ Thanks for helping! Issues and pull requests are welcome in English or Vietnames
 ```bash
 git clone https://github.com/ptnghia/cms-content-agent.git && cd cms-content-agent
 npm test            # Node >= 22.13; no install step
-npm run check
+npm run check && npm run lint:php
 ```
+
+Working on the plugin: run WordPress Playground with it mounted (no MySQL or Docker needed):
+
+```bash
+npx @wp-playground/cli server --mount=./wordpress/content-agent:/wordpress/wp-content/plugins/content-agent --login
+```
+
+Plugin code follows the WordPress coding standards (tabs, `array()`, escaping on output, nonces and capability checks
+on every action). Keep PHP 7.4 compatibility and no Composer dependencies. User-facing strings go through `__()` with
+the `content-agent` text domain; add Vietnamese translations to `languages/content-agent-vi.l10n.php`.
 
 Tests use a fake CLI (`test/fixtures/fake-agent.mjs`) and a fake website API, so they need no API keys.
 For a live check against a real CLI: `AGENT_BACKEND=claude npm run smoke`.
@@ -34,7 +44,7 @@ For a live check against a real CLI: `AGENT_BACKEND=claude npm run smoke`.
 | `agent/*.md` | system prompts (Vietnamese) |
 | `skills/<name>/SKILL.md` | skills shared by every CLI |
 | `web/widget.js` | the embeddable widget (vanilla JS, Shadow DOM) |
-| `php/` | token + embed helpers for PHP admins |
+| `wordpress/content-agent/` | the WordPress plugin (REST API, review queue, chat embed, block-editor sidebar) |
 
 ## Common contributions
 
@@ -43,7 +53,7 @@ For a live check against a real CLI: `AGENT_BACKEND=claude npm run smoke`.
 - **A new skill:** add `skills/<name>/SKILL.md` with front-matter `name`, `description` and optional
   `compose: new|optimize|sales`. No code change needed.
 - **A new storage driver:** implement the contract in `server/store.mjs` and add it to `test/store.test.mjs`.
-- **Translations:** prompts in `agent/`, skills, and widget strings in `web/widget.js`.
+- **Translations:** prompts in `agent/`, skills, widget strings in `web/widget.js`, plugin strings in `wordpress/content-agent/languages/`.
 
 ## Pull requests
 

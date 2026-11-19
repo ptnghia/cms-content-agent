@@ -1,20 +1,36 @@
 {
   "name": "cms-content-agent",
-  "version": "0.3.0",
-  "description": "Self-hosted AI content & SEO assistant for CMS admin panels: embeddable chat widget, content sync, review-before-publish proposals, pluggable agent CLIs (Claude Code, Codex, agy).",
+  "version": "0.4.0",
+  "description": "AI content & SEO agent for WordPress: a self-hosted backend running Claude Code / Codex / agy plus a WordPress plugin with chat in wp-admin, a review queue and a \"Write with AI\" block-editor sidebar.",
   "type": "module",
   "private": true,
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/ptnghia/cms-content-agent.git" },
-  "keywords": ["seo", "cms", "content", "ai-agent", "claude-code", "codex", "chat-widget", "php"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ptnghia/cms-content-agent.git"
+  },
+  "keywords": [
+    "wordpress",
+    "wordpress-plugin",
+    "woocommerce",
+    "seo",
+    "ai-agent",
+    "claude-code",
+    "codex",
+    "content"
+  ],
   "scripts": {
     "start": "node server/server.mjs",
     "dev": "DEV_MODE=1 node server/server.mjs",
     "mock-site": "node dev/mock-site.mjs",
     "smoke": "node bridge/smoke.mjs",
     "test": "node --test --test-reporter=spec \"test/*.test.mjs\"",
-    "check": "node --check server/*.mjs server/store/*.mjs bridge/*.mjs bridge/adapters/*.mjs scripts/*.mjs dev/*.mjs web/widget.js",
-    "migrate:sqlite": "node scripts/migrate-file-to-sqlite.mjs"
+    "check": "node --check server/*.mjs server/store/*.mjs bridge/*.mjs bridge/adapters/*.mjs scripts/*.mjs dev/*.mjs web/widget.js wordpress/content-agent/assets/editor.js",
+    "migrate:sqlite": "node scripts/migrate-file-to-sqlite.mjs",
+    "build:wp": "node scripts/build-wp-plugin.mjs",
+    "lint:php": "for f in $(find wordpress -name '*.php'); do php -l \"$f\" > /dev/null || exit 1; done && echo php ok"
   },
-  "engines": { "node": ">=22.13" }
+  "engines": {
+    "node": ">=22.13"
+  }
 }

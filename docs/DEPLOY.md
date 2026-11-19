@@ -64,12 +64,19 @@ server {
 }
 ```
 
-## Phía website PHP
-1. Chép `php/ContentAgent.php` và `php/token.php` vào admin. Đặt biến môi trường `AGENT_TOKEN_SECRET` bằng `tokenSecret` của site.
-2. Sửa phần kiểm tra đăng nhập trong `token.php` theo cơ chế admin của bạn, và sửa `siteId` nếu khác `main`.
-3. Trong layout admin: `<?= ContentAgent::embed('https://agent.example.com', '/admin/token.php') ?>`
-4. Thêm origin của admin vào `allowedOrigins` trong `config/sites.json`.
-5. Viết các endpoint đồng bộ theo [SITE_API.md](SITE_API.md) (tối thiểu `GET /posts`).
+## Phía WordPress
+1. Cài plugin: *Plugin → Cài mới → Tải lên* file `content-agent.zip` (tải ở Releases hoặc chạy `npm run build:wp`), rồi kích hoạt.
+2. *Content Agent → Cài đặt*: nhập **URL backend** (HTTPS), lưu lại. Plugin tự tạo API key và token secret.
+3. Chép khối **Backend configuration** vào `config/sites.json` của backend (gộp vào đối tượng đang có), rồi khởi động lại backend.
+   Khối này đã có sẵn `allowedOrigins`, `api.base` (`/wp-json/content-agent/v1`) và `api.features` theo plugin đang bật (WooCommerce…).
+4. Quay lại trang cài đặt, kiểm tra trạng thái *Kết nối được*, rồi bấm nút chat → **Đồng bộ** cho lần đầu.
+5. Muốn đồng bộ tự động thì đặt `SYNC_INTERVAL_MIN` (ví dụ `60`) trong `.env` của backend.
+
+Lưu ý:
+- REST API WordPress phải truy cập được từ backend, và header `Authorization` phải đi tới PHP. Một số host Apache/CGI
+  chặn header này: khi đó thêm `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` vào `.htaccess`.
+- Plugin bảo mật/tường lửa (Wordfence…) có thể chặn REST API cho khách: cho phép namespace `content-agent/v1` hoặc IP của backend.
+- Đổi khoá (*Cài đặt → Đổi khoá bí mật*) thì nhớ cập nhật lại `config/sites.json`.
 
 ## Lưu trữ: file hay SQLite
 - `STORE_DRIVER=file` (mặc định): mỗi hội thoại một file JSON, usage ghi JSONL theo tháng. Hợp với vài người dùng.

@@ -1,185 +1,156 @@
-# cms-content-agent
+# cms-content-agent: an AI content & SEO agent for WordPress
 
-**A self-hosted AI content & SEO assistant for your CMS admin panel.**
-Drop one `<script>` tag into the admin of any website (PHP helpers included), and editors get a chat
-assistant that knows every post, product and category on the site, audits SEO, plans content, writes and
-optimises pages, and **sends every change to a human review queue instead of publishing it.**
+**Give your WordPress editors an AI assistant that knows every post, page and product on the site.** It audits SEO,
+plans content, writes and optimises pages, and **puts every change in a review queue instead of publishing it.**
 
-The agent runs on coding-agent CLIs you already have (**Claude Code**, **OpenAI Codex**, or **agy**) with an
-automatic fallback between them. There are no npm dependencies: you only need Node.js 22.13+.
+The project has two parts:
 
-[Tiếng Việt](README.vi.md) · [Deploy](docs/DEPLOY.md) · [Website API contract](docs/SITE_API.md) · [Roadmap](docs/PLAN.md) · [Contributing](CONTRIBUTING.md)
+| | What it is | Runs on |
+|---|---|---|
+| **Backend** (`server/`, `bridge/`) | Node.js service that drives an AI coding agent: **Claude Code**, **OpenAI Codex** or **agy**, with automatic fallback | a VPS or any Docker host |
+| **WordPress plugin** (`wordpress/content-agent/`) | Chat in wp-admin, review queue, "Write with AI" sidebar in the block editor, SEO audit, REST API for the backend | your WordPress site (6.2+, PHP 7.4+) |
 
-> The default prompts, skills and widget UI are written in **Vietnamese** (the project's first users).
-> Everything is plain Markdown in `agent/` and `skills/`, so you can translate it. Contributions for other languages are welcome.
+It supports posts, pages, categories, **WooCommerce** products and product categories, and **Yoast SEO** or **Rank Math**.
+Without an SEO plugin, it uses its own SEO fields.
+
+[Tiếng Việt](README.vi.md) · [Deploy](docs/DEPLOY.md) · [Plugin ↔ backend API](docs/SITE_API.md) · [Roadmap](docs/PLAN.md) · [Contributing](CONTRIBUTING.md)
+
+> The agent's prompts and skills are written in Vietnamese (the project's first users), and the plugin ships English + Vietnamese UI.
+> Prompts are plain Markdown in `agent/` and `skills/`. Translations are welcome.
 
 ---
 
-## Features
+## What editors get
 
-- **Embeddable chat widget.** One script tag, Shadow DOM (no CSS clashes), floating or inline. It supports streaming
-  answers, stop, conversation history, sync button and image attachments.
-- **Knows the website.** The backend pulls posts, products, categories, keywords and SEO audit results from your
-  site's API into a per-site workspace, with pre-computed stats (missing meta, thin content, stale posts…).
-- **Review before publish.** The agent never writes to the CMS. It drops proposals into `outbox/`, the backend
-  posts them to the site's review queue (`POST /proposals`), and an admin applies or rejects them. If the site
-  rejects a proposal (for example because a price changed), the agent gets the reason and fixes it once.
-- **Editor plugin endpoint.** `/api/compose` returns a new or optimised article plus SEO meta in one shot for a
-  "write with AI" button in CKEditor or a similar editor.
-- **Pluggable agent CLIs.** `claude`, `codex` and `agy` adapters share one interface. Fallback to a second CLI uses a
-  cooldown, and every session resumes on the CLI that created it.
-- **Skills library.** Add `skills/<name>/SKILL.md` and both chat and compose pick it up. Skills included: SEO on-page,
-  content plan, writing, internal linking, keyword clustering, marketing copy, translation.
-- **Multi-site & multilingual.** One backend serves many sites. A translated site can read its source site's workspace.
-- **Operations built in.** Per-user rate limits, token and cost usage log (`/api/usage`), file or SQLite storage,
-  periodic sync with webhook alerts, and read-only protection of synced data in the agent workspace.
+| Chat in wp-admin | Review queue | Write with AI (block editor) |
+|---|---|---|
+| ![Chat widget](docs/images/chat-widget.png) | ![Review queue with diff](docs/images/review-queue.png) | ![Write with AI sidebar](docs/images/write-with-ai.png) |
+
+- **A chat button in wp-admin.** Editors can ask, for example, *"Which posts have no meta description?"*, *"Plan 10 articles around
+  'trail running shoes'"* or *"Rewrite the intro of the About page"*. Answers stream in, and images can be attached; they go to the media library.
+- **A review queue (Content Agent → Proposals).** Each suggested change shows a side-by-side diff of title, content,
+  excerpt and SEO fields. You can apply it, reject it with a reason the assistant will see, or revert it later.
+  New posts and pages are always created as **drafts**.
+- **Write with AI in the block editor.** A sidebar drafts or optimises the post you are editing and fills in the title, content
+  (as real Gutenberg blocks) and SEO title, description and keywords.
+- **An SEO audit** of all published content. It checks meta title and description length, focus keyword usage, thin content,
+  headings and image alt text, and uses the Yoast or Rank Math score when available.
+- **Safe WooCommerce edits.** The assistant improves product descriptions, but prices, SKU, stock and attributes are
+  read-only. A proposal that changes or drops a figure is refused by the plugin.
 
 ## How it works
 
 ```
- CMS admin (any stack)                     cms-content-agent (Node, no deps)               Agent CLI
-┌──────────────────────┐  SSE + Bearer   ┌─────────────────────────────────────┐  spawn  ┌──────────────┐
-│ <script widget.js>   │ ───────────────►│ /api/chat  /api/compose             │ ──────► │ claude -p    │
-│ token endpoint (PHP) │  short-lived    │ conversations, usage  (file|sqlite) │         │ codex exec   │
-└──────────┬───────────┘  HMAC token     │ data/sites/<id>/  = agent workspace │ ◄────── │ agy -p       │
-           │                             │   posts/ content/ seo/   (read-only)│  JSONL  └──────────────┘
-           │ Website API (docs/SITE_API) │   plans/ drafts/ outbox/ notes.md   │
-           └────────────────────────────►│ sync ◄── GET /posts /products …     │
-             review queue  ◄─────────────│ outbox ──► POST /proposals          │
-                                         └─────────────────────────────────────┘
+ WordPress (plugin)                               cms-content-agent backend              Agent CLI
+┌───────────────────────────────┐   SSE chat    ┌───────────────────────────────┐ spawn ┌─────────────┐
+│ wp-admin chat widget          │ ─────────────►│ /api/chat  /api/compose       │ ─────►│ claude -p   │
+│ "Write with AI" sidebar       │  short-lived  │ conversations + usage log     │       │ codex exec  │
+│ token via admin-ajax          │  HMAC token   │ data/sites/<id>/ = workspace  │◄───── │ agy -p      │
+│                               │               │   synced content (read-only)  │ JSONL └─────────────┘
+│ REST /wp-json/content-agent/v1│◄── sync ──────│   plans/ drafts/ outbox/      │
+│   posts pages products seo …  │               │                               │
+│ Proposals queue (review/apply)│◄── POST ──────│ outbox → /proposals           │
+└───────────────────────────────┘               └───────────────────────────────┘
 ```
 
-The agent works **only on files** in its workspace. It reads synced data and writes plans, drafts and proposals.
-The backend handles network access, sync and delivery, so the agent never needs shell or network tools, and they
-are disabled by default.
+The agent works **only on files**: synced content plus its own plans, drafts and proposals. It has no shell or
+network tools. The backend syncs data and delivers proposals, and **WordPress validates and applies them only when a
+person clicks Apply.**
 
-## Quick start (local)
+## Setup (about 10 minutes)
+
+**1. Run the backend** on a server you control (needs a public HTTPS URL):
 
 ```bash
 git clone https://github.com/ptnghia/cms-content-agent.git && cd cms-content-agent
-cp .env.example .env                                   # AGENT_BACKEND=claude by default
-cp config/sites.example.json config/sites.json
-# in config/sites.json set: "tokenSecret" (openssl rand -hex 32),
-#   "api": { "base": "http://127.0.0.1:4000/api/agent", "key": "dev-key" }
-
-npm run mock-site      # terminal 1: fake website API with 235 posts on :4000
-npm run dev            # terminal 2: backend on http://127.0.0.1:3000 with a demo admin page
+cp .env.example .env
+echo '{}' > config/sites.json
+docker compose up -d --build            # Claude Code preinstalled; or: npm start (Node 22.13+)
+docker compose run --rm agent claude    # log in once (or set ANTHROPIC_API_KEY in .env)
 ```
 
-Open http://127.0.0.1:3000, press **Đồng bộ** (sync), and ask, for example, *"Bài nào thiếu meta description?"*
-("Which posts are missing a meta description?").
-You need one agent CLI installed and logged in (for example `claude`, then `/login`, or `ANTHROPIC_API_KEY` in the environment).
-Check it with `npm run smoke`.
+Put it behind HTTPS (nginx/Caddy, SSE buffering off; see [docs/DEPLOY.md](docs/DEPLOY.md)).
 
-## Docker
+**2. Install the plugin.** Download `content-agent.zip` from the
+[latest release](https://github.com/ptnghia/cms-content-agent/releases) (or run `npm run build:wp`), then go to
+*Plugins → Add New → Upload* and activate it.
+
+**3. Connect them.** In *Content Agent → Settings*, enter the backend URL and save. Copy the **Backend configuration**
+block it shows into `config/sites.json` on the backend and restart (`docker compose restart`). The settings page shows
+*Reachable* when the backend answers.
+
+**4. Use it.** Click the chat button at the bottom right of wp-admin, then **Đồng bộ** (sync) for the first sync.
+
+### Try it locally without a server
 
 ```bash
-cp config/sites.example.json config/sites.json   # edit it
-docker compose up -d --build                     # backend on 127.0.0.1:3000 (Claude Code preinstalled)
-docker compose run --rm agent claude             # one-time login, stored in a volume
-docker compose --profile dev up                  # optionally also start the mock website API
+npm run mock-site      # fake website API with 235 posts on :4000
+npm run dev            # backend + demo admin page on http://127.0.0.1:3000
 ```
 
-Build with `--build-arg INSTALL_CODEX=1` to add Codex. The container runs as a non-root user (required for the
-read-only workspace protection). Production setup (systemd, nginx with SSE): [docs/DEPLOY.md](docs/DEPLOY.md).
+To test the plugin, run WordPress Playground with the plugin mounted:
+`npx @wp-playground/cli server --mount=./wordpress/content-agent:/wordpress/wp-content/plugins/content-agent --login`.
 
 ## Agent backends
 
 | `AGENT_BACKEND` | CLI | Streaming | Resume | Usage / cost | Notes |
 |---|---|---|---|---|---|
-| `claude` | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | tokens | `--resume` | tokens + USD | `Bash`, `WebFetch`, `WebSearch` disabled by default (`CLAUDE_DISALLOWED_TOOLS`) |
+| `claude` (default) | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | tokens | `--resume` | tokens + USD | `Bash`, `WebFetch`, `WebSearch` disabled by default |
 | `codex` | [OpenAI Codex CLI](https://github.com/openai/codex) | final message | `exec resume` | tokens | sandbox `workspace-write`, no network |
 | `agy` | agy | tokens | `--conversation` | as reported | headless mode refuses commands |
 
-Set `AGENT_FALLBACK=codex` (for example) to retry a failed turn on another CLI. After a failure the backup is
-preferred for `AGENT_FALLBACK_COOLDOWN_SEC`. Text that was already streamed is never replayed on another CLI.
+`AGENT_FALLBACK=codex` retries a failed turn on another CLI. To add a CLI, create `bridge/adapters/<name>.mjs`
+(see `bridge/index.mjs` for the contract).
 
-**Adding a CLI:** create `bridge/adapters/<name>.mjs` exporting `name` and `runTurn(opts)`, which returns
-`{sessionId, response, status, denied, usage}` and emits `init` / `delta` / `step` events. Register it in
-`bridge/index.mjs` and add a test with `test/fixtures/fake-agent.mjs`.
+## Backend configuration
 
-## Configuration
-
-**`config/sites.json`**: one entry per website:
-
-```jsonc
-{
-  "main": {
-    "name": "My website",
-    "language": "vi",
-    "tokenSecret": "<openssl rand -hex 32>",        // shared with the site's token endpoint
-    "allowedOrigins": ["https://admin.example.com"],
-    "api": {
-      "base": "https://example.com/api/agent",       // see docs/SITE_API.md
-      "key": "<site API key>",
-      "features": ["content", "products", "categories", "keywords", "seo", "proposals"]   // optional
-    },
-    "fieldMap": { "body": "content", "meta_title": "seo_title" },   // optional: your CMS column names
-    "mediaOrigins": ["https://cdn.example.com"],     // optional: where uploaded images live (default: allowedOrigins)
-    "skills": ["seo-onpage", "content-writing"],     // optional: limit skills for this site
-    "translationOf": "main-vi"                       // optional: this site is a translation of another
-  }
-}
-```
-
-The agent always uses **canonical field names** (`name`, `excerpt`, `body`, `body_extra`, `faq`, `meta_title`,
-`meta_description`, `meta_keywords`, …). `fieldMap` renames them to your CMS columns when proposals are sent and
-compose results are returned. See [docs/SITE_API.md](docs/SITE_API.md).
-
-**Environment** (`.env`): see [.env.example](.env.example) for every option. The main ones:
+`.env` (all options in [.env.example](.env.example)):
 
 | Variable | Default | |
 |---|---|---|
 | `AGENT_BACKEND` / `AGENT_FALLBACK` | `claude` / – | primary and backup CLI |
-| `STORE_DRIVER` | `file` | `sqlite` uses built-in `node:sqlite`; migrate with `npm run migrate:sqlite` |
 | `MAX_CONCURRENT` | `2` | agent processes at once |
 | `CHAT_PER_HOUR` / `COMPOSE_PER_HOUR` | `60` / `12` | per-user rate limits (`0` = off) |
+| `STORE_DRIVER` | `file` | `sqlite` for many conversations (`npm run migrate:sqlite`) |
 | `SYNC_INTERVAL_MIN` | `0` | periodic sync of every site |
-| `SYNC_ALERT_WEBHOOK` | – | POST alert when sync fails `SYNC_ALERT_AFTER` times in a row (Slack/Discord-compatible) |
-| `WORKSPACE_LOCK` | `1` | synced data is read-only for the agent between syncs |
+| `SYNC_ALERT_WEBHOOK` | – | Slack/Discord-compatible alert when sync keeps failing |
 
-## HTTP API
+`config/sites.json` holds one entry per WordPress site, exactly as the plugin's settings page prints it. One backend can
+serve many sites.
 
-All endpoints except health and widget need `Authorization: Bearer <token>`. The token is minted by your site:
-`base64url(payload).base64url(HMAC-SHA256)`, with payload `{site, uid, name, exp}` and a maximum TTL of 24h.
-See `php/ContentAgent.php`.
+## Backend HTTP API
+
+The widget and the editor sidebar use these endpoints. All of them except health and widget need
+`Authorization: Bearer <token>` minted by the plugin.
 
 | Method | Path | |
 |---|---|---|
-| POST | `/api/chat` | `{message, conversationId?}` → SSE: `init`, `step`, `delta`, `proposals`, `result`, `error` |
-| POST | `/api/compose` | editor plugin: `{mode: new\|optimize, brief, keyword, …}` → SSE `progress`, `result {fields, notes}` |
-| GET | `/api/conversations` | the user's conversations |
-| GET / DELETE | `/api/conversations/:id` | read / delete one |
-| POST | `/api/sync` | sync the site now |
-| GET | `/api/status` | last sync, sync health |
-| GET | `/api/usage?days=30` | tokens, cost and requests for the user and the whole site, by backend |
+| POST | `/api/chat` | `{message, conversationId?}` → SSE `init`, `step`, `delta`, `proposals`, `result`, `error` |
+| POST | `/api/compose` | block-editor sidebar → SSE `progress`, `result {fields, notes}` |
+| GET / DELETE | `/api/conversations[/:id]` | the user's conversations |
+| POST | `/api/sync` · GET `/api/status` | sync now · last sync and sync health |
+| GET | `/api/usage?days=30` | tokens, cost and requests for the user and the site |
 | GET | `/api/health`, `/widget.js` | public |
 
-## Embedding in your admin
-
-```php
-<?php require 'php/ContentAgent.php'; ?>
-<?= ContentAgent::embed('https://agent.example.com', '/admin/token.php', ['title' => 'Content assistant']) ?>
-```
-
-`php/token.php` is a minimal token endpoint. Replace its session check with your admin auth.
-Other stacks only need to reproduce the ~10-line HMAC token in `php/ContentAgent.php`.
+The plugin's REST API (`/wp-json/content-agent/v1/…`, called by the backend with the site API key) is documented in
+[docs/SITE_API.md](docs/SITE_API.md).
 
 ## Security model
 
-- Secrets (`tokenSecret`, `api.key`) stay on servers. The browser only holds a short-lived token bound to one site and user.
-- Conversations are private to the `uid` that created them, and CORS is limited to `allowedOrigins`.
-- The agent cannot publish. Website changes are proposals that a human approves.
-- The agent has no shell or network tools, and synced data is read-only on disk (`WORKSPACE_LOCK`). Run the
-  service as a dedicated non-root user.
+- **Nothing is published by the AI.** Proposals need a logged-in user with permission to edit that page. New content is created as drafts.
+- **Each site has two secrets**, both generated by the plugin and stored only on the two servers: the API key the backend
+  uses to call WordPress, and the token secret used to sign 15-minute chat tokens. Chat tokens are bound to one site and one user.
+- Conversations are private to the WordPress user who started them, and CORS is limited to the site's origin.
+- **The agent can only read and write workspace files.** Shell and network tools are disabled, and synced data is read-only on disk.
 - Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 ## Development
 
 ```bash
-npm test          # node:test, no dependencies. Fake CLIs + fake website, runs against file and sqlite stores
-npm run check     # syntax check
-npm run smoke     # live 2-turn check against your real CLI
+npm test            # backend tests (fake CLIs + fake WordPress API), file and sqlite stores, PHP <-> Node token check
+npm run lint:php    # php -l on the plugin
+npm run build:wp    # dist/content-agent.zip
+npm run smoke       # live 2-turn check against your real agent CLI
 ```
 
 ## License

@@ -6,6 +6,8 @@ import { parseComposeResponse, normalizeCompose } from '../server/compose.mjs';
 import { createRateLimiter } from '../server/rate-limit.mjs';
 import { normalizeUsage } from '../bridge/process.mjs';
 import { toCms, fromCms, canonicalName } from '../server/fields.mjs';
+import { parseSites } from '../server/config.mjs';
+import { readFileSync } from 'node:fs';
 import { summarize, upgradeConversation } from '../server/store/common.mjs';
 
 const sites = { main: { tokenSecret: 'x'.repeat(32) } };
@@ -140,4 +142,13 @@ test('compose: request accepts the site\'s own field names', () => {
   assert.equal(r.target, 'excerpt');
   assert.equal(r.cur.body, '<p>x</p>');
   assert.deepEqual(r.others, { body: 'y' });
+});
+
+test('parseSites: comments dropped, example file valid, bad entries rejected', () => {
+  assert.deepEqual(parseSites({}), {});
+  const ex = parseSites(JSON.parse(readFileSync(new URL('../config/sites.example.json', import.meta.url), 'utf8')));
+  assert.deepEqual(Object.keys(ex), ['example-com']);
+  assert.throws(() => parseSites({ a: { tokenSecret: 'short' } }), /tokenSecret/);
+  assert.throws(() => parseSites({ 'bad id!': { tokenSecret: 'x'.repeat(32) } }), /Invalid siteId/);
+  assert.throws(() => parseSites({ a: { tokenSecret: 'x'.repeat(32), translationOf: 'nope' } }), /translationOf/);
 });

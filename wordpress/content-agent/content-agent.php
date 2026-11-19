@@ -1,0 +1,47 @@
+<?php
+/**
+ * Plugin Name:       Content Agent
+ * Plugin URI:        https://github.com/ptnghia/cms-content-agent
+ * Description:       AI content & SEO assistant for wp-admin. Chat with an agent that knows your posts, pages and products, audits SEO and writes or optimises content. Every change waits in a review queue until you apply it.
+ * Version:           0.4.0
+ * Requires at least: 6.2
+ * Requires PHP:      7.4
+ * Author:            cms-content-agent contributors
+ * License:           MIT
+ * License URI:       https://opensource.org/licenses/MIT
+ * Text Domain:       content-agent
+ * Domain Path:       /languages
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+define( 'CONTENT_AGENT_VERSION', '0.4.0' );
+define( 'CONTENT_AGENT_FILE', __FILE__ );
+define( 'CONTENT_AGENT_DIR', plugin_dir_path( __FILE__ ) );
+define( 'CONTENT_AGENT_URL', plugin_dir_url( __FILE__ ) );
+
+require_once CONTENT_AGENT_DIR . 'includes/class-token.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-settings.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-seo.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-blocks.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-content.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-audit.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-proposals.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-rest.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-admin.php';
+require_once CONTENT_AGENT_DIR . 'includes/class-editor.php';
+
+register_activation_hook( __FILE__, array( 'ContentAgent\\Settings', 'activate' ) );
+
+add_action(
+	'plugins_loaded',
+	static function () {
+		load_plugin_textdomain( 'content-agent', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	}
+);
+
+add_action( 'init', array( 'ContentAgent\\Proposals', 'register' ) );
+add_action( 'rest_api_init', array( 'ContentAgent\\Rest', 'register' ) );
+ContentAgent\Seo::hooks();
+ContentAgent\Admin::hooks();
+ContentAgent\Editor::hooks();

@@ -1,5 +1,5 @@
 // Đồng bộ MỞ RỘNG (tuỳ site): nội dung đầy đủ, sản phẩm, danh mục, từ khoá, kết quả kiểm tra SEO, trạng thái đề xuất.
-// Chỉ chạy khi site khai báo trong config/sites.json:  "api": { ..., "features": ["content", "products", "categories", "keywords", "seo", "proposals"] }
+// Chỉ chạy khi site khai báo trong config/sites.json:  "api": { ..., "features": ["content", "products", "categories", "keywords", "seo", "proposals", "schema"] }
 // Site không khai báo → giữ nguyên hành vi cũ (chỉ GET /posts). Hợp đồng API: docs/SITE_API.md (phần "Mở rộng").
 //
 // Kết quả trong workspace (agent chỉ ĐỌC):
@@ -8,6 +8,7 @@
 //   site/inventory.md      MỌI trang (loại, id, tiêu đề, slug, từ khoá chính, điểm SEO) — đọc trước khi viết bài mới để tránh trùng
 //   seo/audit.md           điểm SEO + lỗi theo trang (từ trang "Kiểm tra SEO" của website)
 //   seo/keywords.md        ngân hàng từ khoá (trang đích, ưu tiên, lượt tìm nhập tay)
+//   site/fields.md         trường được phép đề xuất theo loại trang (feature "schema")
 //   outbox/STATUS.md       các đề xuất đã gửi và trạng thái duyệt
 import { mkdir, rm, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
@@ -170,6 +171,20 @@ export async function syncExtended(site, ws, postsWithContent) {
     }
     report.seo = s.pages;
   }
+  if (hasFeature(site, 'schema')) {
+    // What this website lets the agent change (fields per page type, notes) — authoritative over the generic prompt.
+    const d = await apiGet(site, '/schema');
+    const types = Object.entries(d.types || {}).map(([t, v]) =>
+      `| \`${t}\` | ${cell(v.label || t)} | ${(v.editable || []).map((f) => `\`${f}\``).join(', ')} | ${(v.create || []).length ? (v.create || []).map((f) => `\`${f}\``).join(', ') : '— (chỉ update)'} |`);
+    await atomicWrite(path.join(ws, 'site', 'fields.md'), [
+      `# Trường được phép đề xuất trên website này${d.cms ? ` (${d.cms}${d.version ? ' ' + d.version : ''})` : ''}`, '',
+      'Bảng này là **nguồn chính xác** cho file outbox/: chỉ dùng các `type` và trường dưới đây; trường khác website sẽ từ chối.', '',
+      d.seo_provider ? `- Trường SEO lưu vào: **${cell(d.seo_provider)}**` : '',
+      '', '| type | Loại trang | Trường sửa được (update) | Thêm khi tạo mới (create) |', '|---|---|---|---|', ...types, '',
+      ...(Array.isArray(d.notes) && d.notes.length ? ['## Lưu ý', ...d.notes.map((n) => `- ${n}`), ''] : []),
+    ].join('\n'));
+    report.schema = Object.keys(d.types || {}).length;
+  }
   if (hasFeature(site, 'proposals')) await writeProposalStatus(site, ws).catch(() => {});
   return report;
 }
@@ -178,8 +193,8 @@ export async function syncExtended(site, ws, postsWithContent) {
 export async function writeProposalStatus(site, ws) {
   const d = await apiGet(site, '/proposals');
   const label = { pending: 'chờ duyệt', applied: 'ĐÃ ÁP DỤNG', rejected: 'bị từ chối', reverted: 'đã hoàn tác' };   // see docs/SITE_API.md
-  const rows = (d.items || []).map((p) => [p.id, p.action, p.type, p.target_id ?? '(mới)', p.title, label[p.status] || p.status, (p.fields || []).join(', '), p.created_at?.slice(0, 10)].map(cell).join(' | '));
+  const rows = (d.items || []).map((p) => [p.id, p.action, p.type, p.target_id ?? '(mới)', p.title, label[p.status] || p.status, (p.fields || []).join(', '), p.reason || '', p.created_at?.slice(0, 10)].map(cell).join(' | '));
   await atomicWrite(path.join(ws, 'outbox', 'STATUS.md'),
     `# Đề xuất đã gửi lên website (${rows.length} gần nhất)\n\nĐừng gửi lại đề xuất đang "chờ duyệt" cho cùng trang; "bị từ chối" thì hỏi lại người dùng lý do trước khi làm lại.\n\n` +
-    `| # | Hành động | Loại | Trang | Tóm tắt | Trạng thái | Trường | Ngày |\n|---|---|---|---|---|---|---|---|\n${rows.map((r) => `| ${r} |`).join('\n')}\n`);
+    `| # | Hành động | Loại | Trang | Tóm tắt | Trạng thái | Trường | Lý do từ chối | Ngày |\n|---|---|---|---|---|---|---|---|---|\n${rows.map((r) => `| ${r} |`).join('\n')}\n`);
 }
