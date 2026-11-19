@@ -1,9 +1,9 @@
 <?php
 /**
- * Endpoint cấp token cho widget. Đặt trong khu vực admin (đã đăng nhập), vd /admin/agy-token.php
+ * Endpoint cấp token cho widget. Đặt trong khu vực admin (đã đăng nhập), vd /admin/token.php
  * Widget gọi endpoint này (cùng origin, kèm cookie phiên) để lấy token ngắn hạn.
  */
-require __DIR__ . '/AgyChat.php';
+require __DIR__ . '/ContentAgent.php';
 
 // TODO: thay bằng cơ chế xác thực admin thực tế của bạn.
 session_start();
@@ -14,7 +14,7 @@ if (empty($_SESSION['admin_id'])) {
     exit;
 }
 
-$secret = getenv('AGY_TOKEN_SECRET');   // = tokenSecret của site trong config/sites.json
+$secret = getenv('AGENT_TOKEN_SECRET');   // = tokenSecret của site trong config/sites.json
 if (!$secret) {
     http_response_code(500);
     exit;
@@ -22,7 +22,7 @@ if (!$secret) {
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
-echo json_encode(['token' => AgyChat::token(
+echo json_encode(['token' => ContentAgent::token(
     $secret,
     'main',                                    // siteId
     (string) $_SESSION['admin_id'],            // uid
