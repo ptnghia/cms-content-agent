@@ -55,10 +55,10 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [x] Giao diện tiếng Anh + tiếng Việt
 
 ## Giai đoạn 7 — Mở rộng (đang mở, xem issues)
-- [ ] Phát hành plugin lên wordpress.org (WP coding standards, Plugin Check)
+- [ ] Phát hành plugin lên wordpress.org (đã qua Plugin Check, chờ nộp)
 - [ ] Hỗ trợ trình soạn thảo cổ điển và trang sản phẩm WooCommerce cho "Viết bằng AI"
 - [ ] FAQ có cấu trúc (schema FAQPage) cho sản phẩm / trang
-- [ ] Quốc tế hoá: prompt, skill và chuỗi giao diện widget theo `site.language` (hiện chỉ có tiếng Việt)
+- [x] Quốc tế hoá: prompt và skill tiếng Anh, agent viết theo `site.language`, widget + thông báo backend có en/vi (v0.5.0)
 - [ ] Panel trong widget: xem `plans/`, `drafts/`, usage
 - [ ] Kết nối Google Search Console → `seo/queries.md`
 - [ ] Giới hạn tần suất dùng chung khi chạy nhiều instance (SQLite / Redis)
@@ -66,7 +66,9 @@ Trạng thái: [x] xong · [ ] chưa làm
 
 ## Giai đoạn 8 — Chạy thật & mở rộng quy mô
 - [x] Chạy thử với Claude Code thật trên WordPress + WooCommerce + Yoast (xem [FIELD_TEST.md](FIELD_TEST.md)); sửa liên kết nội bộ `.html`, nhãn danh mục, ghi model vào usage
-- [ ] Quốc tế hoá prompt / skill / widget, đưa plugin lên wordpress.org
+- [x] Quốc tế hoá prompt / skill / widget
+- [x] Plugin qua Plugin Check (0 lỗi), có mục External services trong readme
+- [ ] Nộp plugin lên wordpress.org (cần tài khoản wordpress.org của chủ dự án)
 - [ ] Adapter gọi thẳng Claude API (prompt caching, không cần tiến trình CLI) để giảm chi phí cố định ~27k token mỗi lượt
 
 ## Rủi ro đã biết

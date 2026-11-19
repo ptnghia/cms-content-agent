@@ -7,21 +7,23 @@ import path from 'node:path';
 import { ROOT } from './config.mjs';
 import { skillsComposeBlock } from './skills.mjs';
 import { fromCms, canonicalName } from './fields.mjs';
-import { linkOf } from './content-sync.mjs';
+import { linkOf, FACTS_HEADING } from './content-sync.mjs';
+import { languageName } from './i18n.mjs';
 
-const LENGTHS = { ngan: 'khoảng 600–800 từ', vua: 'khoảng 1000–1300 từ', dai: 'khoảng 1500–2000 từ' };
+const LENGTHS = { short: 'about 600–800 words', medium: 'about 1000–1300 words', long: 'about 1500–2000 words' };
+const LENGTH_ALIASES = { ngan: 'short', vua: 'medium', dai: 'long' };   // values sent by plugin versions <= 0.4
 const SCOPES = {
-  all: 'Tối ưu CẢ nội dung và SEO: giữ ý chính, sửa cấu trúc, diễn đạt, từ khoá, liên kết nội bộ; viết lại meta.',
-  seo: 'CHỈ tối ưu SEO: giữ nguyên NỘI DUNG (không trả mục BODY), chỉ trả NAME, EXCERPT, META_TITLE, META_DESCRIPTION, KEYWORDS.',
-  content: 'CHỈ tối ưu NỘI DUNG (cấu trúc, diễn đạt, từ khoá, liên kết nội bộ): không trả META_TITLE, META_DESCRIPTION, KEYWORDS.',
+  all: 'Optimise BOTH content and SEO: keep the main points, improve structure, wording, keywords and internal links; rewrite the meta.',
+  seo: 'Optimise SEO ONLY: keep the CONTENT as is (do not return BODY); return only NAME, EXCERPT, META_TITLE, META_DESCRIPTION, KEYWORDS.',
+  content: 'Optimise CONTENT ONLY (structure, wording, keywords, internal links): do not return META_TITLE, META_DESCRIPTION, KEYWORDS.',
 };
 const TYPES = {
-  post: 'bài viết tin tức',
-  page: 'TRANG tĩnh (giới thiệu, dịch vụ, liên hệ…)',
-  product: 'SẢN PHẨM (trang bán một sản phẩm / dịch vụ)',
-  category: 'DANH MỤC (trang nhóm sản phẩm / chủ đề)',
+  post: 'blog post',
+  page: 'static PAGE (about, services, contact…)',
+  product: 'PRODUCT (a page selling one product or service)',
+  category: 'CATEGORY (a page grouping products or topics)',
 };
-const TARGETS = { excerpt: 'Mô tả ngắn (excerpt)', body: 'Nội dung (body)', body_extra: 'Bài viết chi tiết (body_extra)' };
+const TARGETS = { excerpt: 'Excerpt (excerpt)', body: 'Content (body)', body_extra: 'Long description (body_extra)' };
 const SALES = new Set(['product', 'category']);   // sales pages: facts are read-only, no name/excerpt rewrite
 const clip = (s, n) => String(s ?? '').slice(0, n);
 
@@ -33,7 +35,7 @@ export function normalizeCompose(b, site) {
     mode,
     brief: clip(b.brief, 3000).trim(),
     keyword: clip(b.keyword, 200).trim(),
-    length: LENGTHS[b.length] ? b.length : 'vua',
+    length: LENGTHS[LENGTH_ALIASES[b.length] || b.length] ? (LENGTH_ALIASES[b.length] || b.length) : 'medium',
     scope: SCOPES[b.scope] ? b.scope : 'all',
     type: TYPES[b.type] ? b.type : 'post',
     target: TARGETS[target] ? target : 'body',
@@ -49,9 +51,11 @@ export function normalizeCompose(b, site) {
 }
 
 
-// ---------- Chọn sẵn dữ liệu liên quan (máy chủ làm, agent không phải mở file) ----------
+// ---------- Pick the relevant data up front (the agent does not open files in compose) ----------
+// Stop words (accent-folded) for the languages we ship; extend for others.
 const STOP = new Set(('la va cua cho cac nhung mot co khong duoc trong tai voi den tu khi nay do the nao gi bai viet ve nen can muon hay thi se da dang ' +
-  'nhu theo cung nhieu rat nhat hon so tren duoi ra vao lai ma neu thay vi nhung boi').split(' '));
+  'nhu theo cung nhieu rat nhat hon so tren duoi ra vao lai ma neu thay vi nhung boi ' +
+  'the a an and or of to in on for with is are be by at as from it this that how what why your you our we best guide').split(' '));
 const fold = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 const tokens = (s) => [...new Set(fold(s).split(/[^a-z0-9]+/).filter((t) => t.length > 1 && !STOP.has(t)))];
 const plainText = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -70,8 +74,9 @@ async function loadItems(ws) {
       const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(txt);
       if (!m) continue;
       const fm = m[1], body = m[2];
-      const facts = /## Dữ kiện chỉ đọc \(facts\)\s*\n([\s\S]*?)(?=\n## |$)/.exec(body);
-      const main = plainText(body.replace(/## Dữ kiện chỉ đọc \(facts\)[\s\S]*$/, '')).replace(/^\(không có nội dung\)$/, '');
+      const fi = body.indexOf(`## ${FACTS_HEADING}`);
+      const facts = fi >= 0 ? /\n([\s\S]*?)(?=\n## |$)/.exec(body.slice(fi + FACTS_HEADING.length + 3)) : null;
+      const main = plainText(fi >= 0 ? body.slice(0, fi) : body).replace(/^\(no content\)$/, '');
       const issues = (/^seo_issues:\n((?:  - .*\n?)+)/m.exec(fm) || [])[1] || '';
       items.push({
         kind: fmVal(fm, 'kind') || { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), url: fmVal(fm, 'url'), kw: fmVal(fm, 'focus_keyword'),
@@ -95,25 +100,25 @@ function rank(items, query, skip) {
   }).filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc);
 }
 
-const line = (it) => `[${it.kind} #${it.id}] ${it.title} | link: ${linkOf(it.url) || it.slug} | từ khoá: ${it.kw || '-'}`;
-const rel = (it, n) => `### ${line(it)}\nTóm tắt: ${it.text.slice(0, n)}${it.facts ? `\nDữ kiện chỉ đọc:\n${it.facts}` : ''}`;
+const line = (it) => `[${it.kind} #${it.id}] ${it.title} | link: ${linkOf(it.url) || it.slug} | keyword: ${it.kw || '-'}`;
+const rel = (it, n) => `### ${line(it)}\nSummary: ${it.text.slice(0, n)}${it.facts ? `\nRead-only facts:\n${it.facts}` : ''}`;
 
-/** Khối dữ liệu đưa thẳng vào prompt: danh mục trang (chống trùng + liên kết nội bộ) + 3–5 trang liên quan nhất */
+/** Data block for the prompt: page list (duplicates + internal links) + the 3–5 most relevant pages */
 export async function buildContextBlock(ws, r) {
   const items = await loadItems(ws);
   const query = `${r.brief} ${r.keyword} ${r.cur.name} ${r.mode === 'optimize' ? `${r.cur.meta_keywords} ${plainText(r.cur.body).slice(0, 600)}` : ''}`;
   const self = r.postId ? { kind: r.type, id: r.postId } : null;
   const top = rank(items, query, self).slice(0, 5).map((x) => x.it);
   const parts = [];
-  parts.push(`## Dữ liệu website (đã chọn sẵn — KHÔNG cần và KHÔNG được mở file)\n\n### Danh mục toàn bộ trang (dùng để chống trùng chủ đề và lấy link liên kết nội bộ)\n` +
+  parts.push(`## Website data (preselected: you do NOT need to and must NOT open files)\n\n### All pages (to avoid duplicate topics and to take internal links from)\n` +
     items.filter((it) => it.slug && it.status !== 'hidden').map((it) => `- ${line(it)}`).join('\n'));
   const me = self ? items.find((it) => it.kind === self.kind && it.id === self.id) : null;
-  if (SALES.has(r.type) && me?.factsFull) parts.push(`### Dữ kiện chỉ đọc của CHÍNH ${r.type === 'product' ? 'sản phẩm' : 'danh mục'} này (nguồn sự thật cho con số / chính sách; không đổi, không bịa thêm)\n${me.factsFull}`);
+  if (SALES.has(r.type) && me?.factsFull) parts.push(`### Read-only facts of THIS ${r.type} (the source of truth for figures and policies; never change them or add new ones)\n${me.factsFull}`);
   if (r.mode === 'new') {
-    parts.push(`### Các trang liên quan nhất tới yêu cầu (nguồn dữ kiện; có thể trùng chủ đề)\n` + (top.length ? top.map((it) => rel(it, 900)).join('\n\n') : '(không có trang nào liên quan rõ ràng)'));
+    parts.push(`### Pages most related to the request (sources of facts; possible duplicate topics)\n` + (top.length ? top.map((it) => rel(it, 900)).join('\n\n') : '(no clearly related page)'));
   } else {
-    if (me) parts.push(`### Điểm SEO hiện tại của trang đang tối ưu: ${me.score}/100\n` + (me.issues.length ? me.issues.map((x) => `- ${x}`).join('\n') : '(không có lỗi ghi nhận)'));
-    parts.push(`### Trang liên quan (gợi ý liên kết nội bộ / đối chiếu dữ kiện)\n` + (top.length ? top.map((it) => rel(it, 450)).join('\n\n') : '(không có)'));
+    if (me) parts.push(`### Current SEO score of the page being optimised: ${me.score}/100\n` + (me.issues.length ? me.issues.map((x) => `- ${x}`).join('\n') : '(no recorded issues)'));
+    parts.push(`### Related pages (internal link ideas / facts to cross-check)\n` + (top.length ? top.map((it) => rel(it, 450)).join('\n\n') : '(none)'));
   }
   return parts.join('\n\n');
 }
@@ -127,57 +132,57 @@ function safeImages(site, imgs) {
 
 function imagesBlock(im, r) {
   if (!im.inline.length && !im.featured) return '';
-  const out = ['## Hình ảnh quản trị viên đã tải lên (đã nằm sẵn trên website — dùng đúng đường dẫn, không đổi)'];
-  if (im.featured) out.push(`Ảnh đại diện: ${im.featured.name} — hệ thống tự gán vào ô Hình ảnh; KHÔNG chèn vào thân bài.`);
+  const out = ['## Images uploaded by the editor (already on the website: use these exact URLs)'];
+  if (im.featured) out.push(`Featured image: ${im.featured.name}. It is set automatically; do NOT insert it in the body.`);
   if (im.inline.length) {
-    out.push(`Ảnh dùng trong nội dung — chèn ĐỦ ${im.inline.length} ảnh, mỗi ảnh một đoạn riêng, đặt ở chỗ hợp lý (sau đoạn nói về nội dung đó; không đặt trước đoạn mở đầu):`);
-    im.inline.forEach((x, i) => out.push(`${i + 1}. URL: ${x.url} — tên gốc: ${x.name}${x.alt ? ` — quản trị viên mô tả ảnh: "${x.alt}"` : ' — (không có mô tả)'}`));
-    out.push('Cách chèn: `<p><img src="URL" alt="mô tả ngắn"></p>`. Bạn KHÔNG xem được nội dung ảnh: alt chỉ dựa vào mô tả của quản trị viên và chủ đề đoạn đó (không có mô tả thì dùng alt trung tính theo chủ đề bài, đừng đoán cảnh vật). Không bịa URL; ảnh nào không hợp thì vẫn chèn ở cuối mục gần nhất và nêu trong NOTES.');
-    if (r.mode === 'optimize') out.push('Bài đang tối ưu đã có ảnh riêng: GIỮ NGUYÊN các ảnh cũ, chỉ thêm các ảnh mới ở trên.');
+    out.push(`Images for the content: insert ALL ${im.inline.length}, each in its own paragraph, where they fit (after the paragraph about that topic; not before the introduction):`);
+    im.inline.forEach((x, i) => out.push(`${i + 1}. URL: ${x.url} — original name: ${x.name}${x.alt ? ` — editor's description: "${x.alt}"` : ' — (no description)'}`));
+    out.push('Insert as `<p><img src="URL" alt="short description"></p>`. You CANNOT see the images: base alt text only on the editor\'s description and the topic of that paragraph (without a description, use a neutral alt about the article topic; never guess what is in the picture). Never invent URLs; if an image does not fit anywhere, put it at the end of the closest section and say so in NOTES.');
+    if (r.mode === 'optimize') out.push('The article already has images: KEEP them all and only add the new ones above.');
   }
   return out.join('\n');
 }
 
 export async function buildComposePrompt(site, workspace, r) {
   const tpl = await readFile(path.join(ROOT, 'agent', 'compose-prompt.md'), 'utf8');
-  const parts = [tpl.replaceAll('{{SITE_NAME}}', site.name || 'website'), await buildContextBlock(workspace, r)];
+  const parts = [tpl.replaceAll('{{SITE_NAME}}', site.name || 'website').replaceAll('{{LANGUAGE}}', `${languageName(site.language || 'en')} (${site.language || 'en'})`), await buildContextBlock(workspace, r)];
   if (r.mode === 'new') {
-    parts.push(`## Yêu cầu: VIẾT BÀI MỚI\nĐộ dài: ${LENGTHS[r.length]}.\nMô tả của quản trị viên:\n${r.brief || '(không mô tả — suy ra từ từ khoá)'}\n${r.keyword ? `Từ khoá chính đề xuất: ${r.keyword}\n` : ''}`);
-    if (r.cur.body.trim()) parts.push(`Ô nội dung hiện có nháp (tham khảo, có thể dùng lại ý):\n${clip(r.cur.body, 8000)}`);
+    parts.push(`## Task: WRITE A NEW ARTICLE\nLength: ${LENGTHS[r.length]}.\nEditor's brief:\n${r.brief || '(no brief: infer it from the keyword)'}\n${r.keyword ? `Suggested focus keyword: ${r.keyword}\n` : ''}`);
+    if (r.cur.body.trim()) parts.push(`The editor already has a draft (for reference, you may reuse ideas):\n${clip(r.cur.body, 8000)}`);
   } else {
-    parts.push(`## Yêu cầu: TỐI ƯU BÀI CÓ SẴN\nPhạm vi: ${SCOPES[r.scope]}${SALES.has(r.type) ? ' (trang bán hàng: không trả NAME, EXCERPT)' : ''}\nGợi ý của quản trị viên:\n${r.brief || '(không có — tự đánh giá theo checklist SEO)'}\n${r.keyword ? `Từ khoá chính: ${r.keyword}\n` : ''}${r.postId ? `ID bài viết trên website: ${r.postId} (điểm và lỗi SEO của bài nằm ở mục dữ liệu bên trên)\n` : 'Bài chưa lưu — chưa có trong kho đồng bộ.\n'}`);
+    parts.push(`## Task: OPTIMISE AN EXISTING ARTICLE\nScope: ${SCOPES[r.scope]}${SALES.has(r.type) ? ' (sales page: do not return NAME, EXCERPT)' : ''}\nEditor's notes:\n${r.brief || '(none: assess it against the SEO checklist)'}\n${r.keyword ? `Focus keyword: ${r.keyword}\n` : ''}${r.postId ? `Post ID on the website: ${r.postId} (its SEO score and issues are in the data section above)\n` : 'Not saved yet, so it is not in the synced data.\n'}`);
     const c = r.cur;
-    parts.push(`### Bài hiện tại (nguồn sự thật — giữ nguyên ảnh, bảng, liên kết, mọi con số)\nNAME: ${c.name}\nEXCERPT: ${c.excerpt}\nMETA_TITLE: ${c.meta_title}\nMETA_DESCRIPTION: ${c.meta_description}\nKEYWORDS: ${c.meta_keywords}\nBODY (HTML):\n${c.body}`);
+    parts.push(`### Current article (source of truth: keep images, tables, links and every figure)\nNAME: ${c.name}\nEXCERPT: ${c.excerpt}\nMETA_TITLE: ${c.meta_title}\nMETA_DESCRIPTION: ${c.meta_description}\nKEYWORDS: ${c.meta_keywords}\nBODY (HTML):\n${c.body}`);
   }
   if (SALES.has(r.type)) {
     const prod = r.type === 'product';
     const others = Object.entries(r.others).filter(([k, v]) => k !== r.target && plainText(v)).map(([k, v]) => `- ${TARGETS[k]}: ${clip(plainText(v), 1800)}`).join('\n');
-    parts.push(`## Loại trang: ${TYPES[r.type]} — trường đích: ${TARGETS[r.target]}\n` +
-      `Đây là trang BÁN HÀNG, không phải bài tin tức: chỉ trả các mục BODY (cho trường đích), META_TITLE, META_DESCRIPTION, KEYWORDS, NOTES — KHÔNG trả NAME, EXCERPT (tên và đường dẫn giữ nguyên).\n` +
-      `- TUYỆT ĐỐI không bịa / đổi / thêm con số giá, ưu đãi, thời hạn, chính sách, thông số, số lượng, kích thước. Con số chỉ lấy từ dữ kiện chỉ đọc hoặc từ nội dung hiện có; không chắc → bỏ, không viết. Không chèn con số giá mới vào nội dung.\n` +
-      (prod ? `- Sản phẩm: \`body\` là bảng giá / thông tin chính (không viết ở đây), \`body_extra\` là bài chi tiết hiện dưới trang, \`excerpt\` là mô tả ngắn đầu trang. Viết đúng vai trò của trường đích; có thể thêm mục hỏi đáp (H2 + câu hỏi H3) chỉ từ dữ kiện có sẵn.\n- Liên kết nội bộ: tới danh mục chứa sản phẩm / sản phẩm liên quan có thật trong danh mục trang.\n` :
-        `- Danh mục: \`excerpt\` là đoạn mở đầu ngắn đầu trang (60–120 từ, 1–2 đoạn <p>); \`body\` là bài SEO cuối trang (giới thiệu nhóm sản phẩm / chủ đề, gợi ý chọn, liên kết xuống các sản phẩm thuộc danh mục có thật).\n`) +
-      (r.target === 'excerpt' ? '- Trường đích là MÔ TẢ NGẮN: chỉ 60–120 từ, 1–2 đoạn <p>, không H2, bỏ qua độ dài ở trên.\n' : '') +
-      (others ? `\nNội dung các trường khác của trang này (chỉ để đối chiếu dữ kiện, KHÔNG viết lại, KHÔNG đổi):\n${others}` : ''));
+    parts.push(`## Page type: ${TYPES[r.type]}; target field: ${TARGETS[r.target]}\n` +
+      `This is a SALES page, not a blog post: return only BODY (for the target field), META_TITLE, META_DESCRIPTION, KEYWORDS, NOTES. Do NOT return NAME or EXCERPT (the name and URL stay).\n` +
+      `- NEVER invent, change or add prices, offers, dates, policies, specs, quantities or sizes. Figures come only from the read-only facts or the current content; when unsure, leave them out. Never add new prices to the content.\n` +
+      (prod ? `- Product: \`body\` is the price table / main info (do not write there), \`body_extra\` is the long description below it, \`excerpt\` is the short description at the top. Write for the target field's role; you may add an FAQ section (H2 + H3 questions) using only existing facts.\n- Internal links: to the product's category and related products that exist in the page list.\n` :
+        `- Category: \`excerpt\` is the short intro at the top (60–120 words, 1–2 <p>); \`body\` is the SEO article at the bottom (introduce the group or topic, help choose, link down to products that exist in this category).\n`) +
+      (r.target === 'excerpt' ? '- The target field is the SHORT DESCRIPTION: 60–120 words, 1–2 <p>, no H2; ignore the length above.\n' : '') +
+      (others ? `\nOther fields of this page (only to cross-check facts; do NOT rewrite or change them):\n${others}` : ''));
   }
   const imBlock = imagesBlock(safeImages(site, r.images), { mode: r.mode });
   if (imBlock) parts.push(imBlock);
   const skillsBlock = await skillsComposeBlock(site, [r.mode, ...(SALES.has(r.type) ? ['sales'] : [])]);
   if (skillsBlock) parts.push(skillsBlock);
-  parts.push('Bắt đầu: mọi dữ liệu cần thiết đã có ở trên, KHÔNG mở file / chạy lệnh. Trả lời ngay ĐÚNG định dạng các mục ===SECTION=== ở trên, không thêm lời dẫn.');
+  parts.push('Start now: all the data you need is above; do NOT open files or run commands. Answer immediately in EXACTLY the ===SECTION=== format above, with no preamble.');
   return parts.join('\n\n');
 }
 
 const KEYS = ['NAME', 'EXCERPT', 'META_TITLE', 'META_DESCRIPTION', 'KEYWORDS', 'NOTES', 'BODY'];
 
 /** Parse ===SECTION=== blocks (the last one, BODY, takes the rest). Returns {fields, notes} with canonical names, or throws. */
-export function parseComposeResponse(text) {
+export function parseComposeResponse(text, formatError = 'The agent did not answer in the expected ===SECTION=== format. Please try again.') {
   const out = {};
   const re = /^===\s*([A-Z_]+)\s*===[ \t]*\r?\n?/gm;
   const marks = [];
   let m;
   while ((m = re.exec(text))) if (KEYS.includes(m[1])) marks.push({ k: m[1], start: m.index, body: m.index + m[0].length });
-  if (!marks.length) throw new Error('Agent không trả đúng định dạng (thiếu các mục ===SECTION===). Hãy thử lại.');
+  if (!marks.length) throw new Error(formatError);
   marks.forEach((mk, i) => { out[mk.k] = text.slice(mk.body, i + 1 < marks.length ? marks[i + 1].start : text.length).trim(); });
   let html = out.BODY || '';
   html = html.replace(/^```(?:html)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();

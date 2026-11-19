@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { tmp } from './helpers.mjs';
 import assert from 'node:assert/strict';
 import { signToken, verifyToken } from '../server/auth.mjs';
 import { parseMarkdownProposal, markdownToHtml, outboxSummary } from '../server/outbox.mjs';
@@ -57,7 +58,7 @@ test('markdownToHtml: escapes HTML, tables, safe links only', () => {
 });
 
 test('outboxSummary: ok and failed lines', () => {
-  const s = outboxSummary([{ file: 'a.md', ok: true, id: 5, review_url: 'https://x/5' }, { file: 'b.md', ok: false, error: 'bad' }]);
+  const s = outboxSummary([{ file: 'a.md', ok: true, id: 5, review_url: 'https://x/5' }, { file: 'b.md', ok: false, error: 'bad' }], { language: 'vi' });
   assert.match(s, /a\.md.*#5.*https:\/\/x\/5/);
   assert.match(s, /b\.md`: bad/);
   assert.equal(outboxSummary([]), '');
@@ -74,7 +75,7 @@ test('compose: parse sections, strip code fence', () => {
 test('compose: normalize clamps unknown values', () => {
   const r = normalizeCompose({ mode: 'weird', length: 'huge', type: 'x', brief: 'b'.repeat(5000), images: { inline: new Array(20).fill({ url: 'u' }) } });
   assert.equal(r.mode, 'new');
-  assert.equal(r.length, 'vua');
+  assert.equal(r.length, 'medium');
   assert.equal(r.type, 'post');
   assert.equal(r.brief.length, 3000);
   assert.equal(r.images.inline.length, 8);
@@ -159,4 +160,21 @@ test('linkOf: root-relative link from a public URL', async () => {
   assert.equal(linkOf('http://127.0.0.1:9500/?page_id=3'), '/?page_id=3');
   assert.equal(linkOf(''), '');
   assert.equal(linkOf(undefined), '');
+});
+
+test('i18n: UI strings follow the site language, English fallback', async () => {
+  const { t, uiLang, languageName } = await import('../server/i18n.mjs');
+  assert.equal(uiLang({ language: 'vi-VN' }), 'vi');
+  assert.equal(uiLang({ language: 'de' }), 'en');
+  assert.equal(uiLang({ language: 'vi', uiLanguage: 'en' }), 'en');
+  assert.match(t({ language: 'vi' }, 'rate_limited', { min: 3 }), /3 phút/);
+  assert.match(t({}, 'rate_limited', { min: 3 }), /3 min/);
+  assert.equal(languageName('vi'), 'Vietnamese');
+});
+
+test('chat prompt: English instructions, content language from the site', async () => {
+  const { buildFreshPrompt } = await import('../server/context.mjs');
+  const p = await buildFreshPrompt({ site: { name: 'S', language: 'vi' }, workspace: tmp(), history: [], message: 'hi' });
+  assert.match(p, /Website content language: Vietnamese \(vi\)/);
+  assert.match(p, /Reply in the language the user writes in/);
 });

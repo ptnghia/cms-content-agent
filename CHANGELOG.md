@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.5.0 — Any language, field-tested
+
+### Changed
+- **Prompts, skills and workspace files are English**; the agent writes website content in the site's `language`
+  (the plugin sets it from the WordPress locale) and replies in the language the editor writes in. Verified with Claude
+  Code on a Vietnamese and an English site.
+- Backend chat messages and errors are localised (`server/i18n.mjs`, English + Vietnamese, chosen by `site.language`
+  or `site.uiLanguage`). The chat widget has an `I18N` table (English + Vietnamese) and a `data-lang` attribute; the
+  plugin passes the user's WordPress locale.
+- Compose `length` values are `short | medium | long` (the old `ngan | vua | dai` are still accepted).
+- Plugin: the widget is loaded with `wp_enqueue_script`; bundled translations load with `load_textdomain` (no
+  `load_plugin_textdomain`); readme documents the external services. **Plugin Check: no errors** (general, plugin_repo,
+  security, performance, accessibility).
+
+### Field test
 First run against a real agent (Claude Code) on a WordPress + WooCommerce + Yoast test site; see
 [docs/FIELD_TEST.md](docs/FIELD_TEST.md).
 
@@ -9,9 +24,9 @@ First run against a real agent (Claude Code) on a WordPress + WooCommerce + Yoas
 - **Internal links**: prompts and the internal-linking skill still told the agent to write `slug.html` links (a leftover
   from the first CMS), which produce broken links on WordPress. The workspace now lists a root-relative **Link** for every
   page (`site/inventory.md`, compose page list) and the agent is told to copy it verbatim.
-- Category tables say "chuyên mục bài viết" / "danh mục sản phẩm" instead of `post` / `product`, so the agent no longer
+- Category tables say "post category" / "product category" instead of `post` / `product`, so the agent no longer
   reports a post category and a product category with the same name as duplicates.
-- The agent pointed editors to a menu that does not exist ("Admin → Đề xuất AI"); it now says Content Agent → Đề xuất.
+- The agent pointed editors to a menu that does not exist; it now says wp-admin → Content Agent → Proposals.
 
 ### Added
 - Plugin: proposals warn about **same-site links that match no post, page, product or term** (relative `*.html`

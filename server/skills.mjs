@@ -1,5 +1,5 @@
-// Thư viện skill dùng chung cho mọi agent CLI: skills/<tên>/SKILL.md (front-matter: name, description, compose).
-// Chat: gửi mục lục + đường dẫn, agent tự đọc khi cần. Compose: nhúng thẳng nội dung skill hợp chế độ (agent không mở file).
+// Skill library shared by every agent CLI: skills/<name>/SKILL.md (front-matter: name, description, compose).
+// Chat: send an index with paths; the agent reads a skill when needed. Compose: embed the matching skills (no file access).
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './config.mjs';
@@ -18,7 +18,7 @@ function parse(src) {
   return { meta, body: m[2].trim() };
 }
 
-/** @returns {Promise<{name, description, compose: string[], file, body}[]>} — site.skills (mảng tên) giới hạn danh sách. */
+/** @returns {Promise<{name, description, compose: string[], file, body}[]>} ; site.skills (array of names) limits the list. */
 export async function loadSkills(site) {
   let dirs = [];
   try { dirs = await readdir(SKILLS_DIR, { withFileTypes: true }); } catch { return []; }
@@ -35,18 +35,18 @@ export async function loadSkills(site) {
   return out;
 }
 
-/** Khối mục lục cho prompt chat. */
+/** Skill index for the chat prompt. */
 export async function skillsIndexBlock(site) {
   const skills = await loadSkills(site);
   if (!skills.length) return '';
-  return '\n\n## Kỹ năng (skills)\nKhi yêu cầu khớp một kỹ năng dưới đây, **đọc file SKILL.md của nó trước** rồi làm theo (chỉ đọc, không sửa):\n' +
+  return '\n\n## Skills\nWhen a request matches a skill below, **read its SKILL.md first** and follow it (read-only, do not edit):\n' +
     skills.map((s) => `- \`${s.name}\` — ${s.description}\n  ${s.file}`).join('\n');
 }
 
-/** Nội dung các skill hợp chế độ compose ('new' | 'optimize' | 'sales'), nhúng thẳng vào prompt. */
+/** Skills matching a compose mode ('new' | 'optimize' | 'sales'), embedded in the prompt. */
 export async function skillsComposeBlock(site, modes) {
   const skills = (await loadSkills(site)).filter((s) => s.compose.some((m) => modes.includes(m)));
   if (!skills.length) return '';
-  return '## Kỹ năng áp dụng (làm theo; quy tắc ở trên vẫn ưu tiên khi mâu thuẫn; bỏ qua các bước "đọc file" vì dữ liệu đã nằm trong yêu cầu)\n' +
+  return '## Skills to apply (follow them; the rules above win on conflict; skip any "read file" steps, the data is already in this request)\n' +
     skills.map((s) => `### ${s.name}\n${s.body.slice(0, BODY_MAX)}`).join('\n\n');
 }

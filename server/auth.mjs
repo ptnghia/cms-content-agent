@@ -1,5 +1,5 @@
-// Token ngắn hạn do backend PHP của website cấp: base64url(JSON).base64url(HMAC-SHA256(phần đầu, tokenSecret))
-// Payload: { site, uid, name?, exp }  (exp: epoch giây)
+// Short-lived tokens minted by the website (WordPress plugin): base64url(JSON).base64url(HMAC-SHA256(first part, tokenSecret))
+// Payload: { site, uid, name?, exp }  (exp: epoch seconds)
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const MAX_TTL_SEC = 24 * 3600;

@@ -1,11 +1,11 @@
 ---
 name: keyword-clustering
-description: Gom nhóm danh sách từ khoá theo chủ đề và gán trang đích, phát hiện từ khoá cạnh tranh nội bộ (cannibalization). Dùng khi người dùng đưa danh sách từ khoá hoặc hỏi về phân bổ từ khoá.
+description: Group a keyword list by topic and assign target pages, detecting internal keyword competition (cannibalization). Use when the user provides a keyword list or asks about keyword allocation.
 ---
-# Gom nhóm từ khoá
+# Keyword clustering
 
-1. Chuẩn hoá: bỏ trùng, gộp biến thể (dấu, số ít / nhiều, thứ tự từ).
-2. Gom theo **ý định tìm kiếm** chung (cùng một trang trả lời được), không chỉ theo từ giống nhau. Mỗi cụm: từ khoá chính (đại diện, ngắn và tự nhiên nhất) + từ khoá phụ.
-3. Phân loại cụm: thông tin (bài viết) · so sánh / cân nhắc (bài so sánh, danh mục) · mua hàng (sản phẩm, danh mục).
-4. Gán trang đích: đối chiếu `seo/keywords.md` và `site/inventory.md`. Cụm đã có trang → ghi ID trang; chưa có → đề xuất loại trang mới. Hai trang cùng nhắm một từ khoá chính → cảnh báo cannibalization và đề xuất giữ trang nào, chuyển trang kia sang từ khoá khác.
-5. Kết quả dạng bảng: cụm | từ khoá chính | từ khoá phụ | loại ý định | trang đích (ID / đề xuất mới) | ghi chú. Không đưa volume / độ khó nếu người dùng không cung cấp.
+1. Normalise: remove duplicates, merge variants (diacritics / accents, singular / plural, word order).
+2. Group by shared **search intent** (one page can answer them all), not only by similar words. Each cluster: a main keyword (the representative one, shortest and most natural) + secondary keywords.
+3. Classify clusters: informational (blog post) · comparison / consideration (comparison post, category) · purchase (product, category).
+4. Assign target pages: check `seo/keywords.md` and `site/inventory.md`. If the cluster already has a page, give the page ID; if not, suggest a new page type. If two pages target the same main keyword, warn about cannibalization and suggest which page to keep and which to move to another keyword.
+5. Output as a table: cluster | main keyword | secondary keywords | intent type | target page (ID / new suggestion) | notes. Do not give volume / difficulty unless the user provides them.

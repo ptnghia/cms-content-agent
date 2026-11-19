@@ -15,6 +15,9 @@ có plugin SEO, plugin dùng trường SEO riêng của nó.
 
 [English](README.md) · [Triển khai](docs/DEPLOY.md) · [API plugin ↔ backend](docs/SITE_API.md) · [Lộ trình](docs/PLAN.md) · [Đóng góp](CONTRIBUTING.md)
 
+> **Mọi ngôn ngữ nội dung.** Agent viết nội dung theo `language` của site (plugin tự lấy từ ngôn ngữ WordPress) và trả lời
+> theo ngôn ngữ người dùng nhắn. Prompt và skill viết bằng tiếng Anh trong `agent/` và `skills/`. Plugin và widget có giao diện tiếng Anh và tiếng Việt.
+
 ## Biên tập viên nhận được gì
 
 - **Nút chat trong wp-admin.** Ví dụ hỏi: "Bài nào thiếu meta description?", "Lập kế hoạch 10 bài quanh từ khoá X",

@@ -1,6 +1,6 @@
 {
   "name": "cms-content-agent",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "AI content & SEO agent for WordPress: a self-hosted backend running Claude Code / Codex / agy plus a WordPress plugin with chat in wp-admin, a review queue and a \"Write with AI\" block-editor sidebar.",
   "type": "module",
   "private": true,

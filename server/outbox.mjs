@@ -20,6 +20,7 @@
 //
 // Field names are canonical (server/fields.mjs) and renamed to the site's own columns with site.fieldMap
 // just before sending. After sending, the file moves to outbox/sent/<time>-<name> next to <…>.result.json.
+import { t } from './i18n.mjs';
 import { readdir, readFile, mkdir, rename, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { hasFeature, writeProposalStatus } from './content-sync.mjs';
@@ -37,7 +38,7 @@ function parseValue(v) {
   return v;
 }
 
-/** front-matter "key: value" (một dòng / giá trị) + phần thân */
+/** Front-matter "key: value" (one line per value) + body */
 export function parseMarkdownProposal(text) {
   const m = /^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
   if (!m) throw new Error('Missing front-matter (--- … ---) at the top of the file');
@@ -60,7 +61,7 @@ function inlineMd(s) {
     .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
     .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+|[a-z0-9-]+\.html)\)/gi, '<a href="$2">$1</a>');
 }
-/** Markdown tối giản → HTML (H1 đổi thành H2 vì trang đã có H1 là tên bài) */
+/** Minimal Markdown -> HTML (H1 becomes H2: the page already has its title as H1) */
 export function markdownToHtml(md) {
   const lines = md.replace(/\r/g, '').split('\n');
   const out = [];
@@ -80,7 +81,7 @@ export function markdownToHtml(md) {
       list.items.push(m[1]);
       continue;
     }
-    if (/^\|.*\|\s*$/.test(line)) {   // bảng
+    if (/^\|.*\|\s*$/.test(line)) {   // table
       flushPara(); flushList();
       const rows = [];
       while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]);
@@ -109,7 +110,7 @@ async function postProposal(site, payload) {
     signal: AbortSignal.timeout(60_000),
   });
   let body = {};
-  try { body = await res.json(); } catch { /* bỏ qua */ }
+  try { body = await res.json(); } catch { /* not JSON */ }
   if (!res.ok) {
     const e = body.error || {};
     return { ok: false, error: e.message || `HTTP ${res.status}`, warnings: e.details || [] };
@@ -119,7 +120,7 @@ async function postProposal(site, payload) {
 }
 
 /**
- * Gửi mọi file trong outbox/ (không đệ quy). Trả về danh sách kết quả (rỗng nếu không có gì / site không bật).
+ * Send every file in outbox/ (not recursive). Returns one result per file (empty when there is nothing or the feature is off).
  * @returns {Promise<Array<{file:string, ok:boolean, id?:number, warnings?:string[], review_url?:string, error?:string}>>}
  */
 export async function processOutbox(siteId, site, ws, source = '') {
@@ -159,11 +160,11 @@ async function sendOutbox(siteId, site, ws, source) {
   return results;
 }
 
-/** Tóm tắt cho khung chat (markdown) */
-export function outboxSummary(results) {
+/** Delivery report appended to the chat answer (Markdown, in the site's UI language). */
+export function outboxSummary(results, site) {
   if (!results.length) return '';
   const lines = results.map((r) => r.ok
-    ? `- ✅ \`${r.file}\` → đề xuất #${r.id} chờ duyệt${r.review_url ? ` — [mở để duyệt](${r.review_url})` : ''}${r.warnings?.length ? `\n  - Cảnh báo: ${r.warnings.join('; ')}` : ''}`
-    : `- ❌ \`${r.file}\`: ${r.error}${r.warnings?.length ? ` (${r.warnings.join('; ')})` : ''}`);
-  return `\n\n---\n**Đã gửi lên website (chờ quản trị viên duyệt):**\n${lines.join('\n')}`;
+    ? `- ${t(site, 'sent_ok', { file: r.file, id: r.id })}${r.review_url ? ` — [${t(site, 'sent_review')}](${r.review_url})` : ''}${r.warnings?.length ? `\n  - ${t(site, 'sent_warn')}: ${r.warnings.join('; ')}` : ''}`
+    : `- ${t(site, 'sent_fail', { file: r.file, error: r.error })}${r.warnings?.length ? ` (${r.warnings.join('; ')})` : ''}`);
+  return `\n\n---\n**${t(site, 'sent_title')}**\n${lines.join('\n')}`;
 }
