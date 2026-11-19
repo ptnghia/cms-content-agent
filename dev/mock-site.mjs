@@ -1,4 +1,4 @@
-// Website giả lập để thử đồng bộ: node dev/mock-site.mjs  (cổng 4000, key "dev-key")
+// Fake website API for local testing: npm run mock-site  (port 4000, key "dev-key", 235 posts)
 import http from 'node:http';
 
 const topics = ['SEO cơ bản', 'Từ khoá dài', 'Backlink', 'Tốc độ trang', 'Schema markup', 'Content cluster'];
@@ -28,4 +28,4 @@ http.createServer((req, res) => {
     return;
   }
   res.writeHead(404).end();
-}).listen(4000, '127.0.0.1', () => console.log('mock site: http://127.0.0.1:4000'));
+}).listen(Number(process.env.MOCK_PORT || 4000), process.env.MOCK_HOST || '127.0.0.1', () => console.log(`mock site: http://${process.env.MOCK_HOST || '127.0.0.1'}:${process.env.MOCK_PORT || 4000}`));

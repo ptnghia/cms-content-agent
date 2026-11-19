@@ -21,6 +21,7 @@
 import { readdir, readFile, mkdir, rename, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { hasFeature, writeProposalStatus } from './content-sync.mjs';
+import { withUnlocked } from './workspace-guard.mjs';
 
 const MAX_FILES = 20;
 const MAX_BYTES = 600_000;
@@ -120,6 +121,10 @@ async function postProposal(site, payload) {
  */
 export async function processOutbox(siteId, site, ws, source = '') {
   if (!hasFeature(site, 'proposals')) return [];
+  return withUnlocked(ws, () => sendOutbox(siteId, site, ws, source));
+}
+
+async function sendOutbox(siteId, site, ws, source) {
   const dir = path.join(ws, 'outbox');
   const sent = path.join(dir, 'sent');
   let names = [];

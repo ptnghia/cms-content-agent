@@ -36,7 +36,7 @@ Tối đa `per_page=100`. Trả **tất cả** trạng thái (kể cả draft) �
 | `proposals` | `POST /proposals` `{action: update\|create, type: post\|product\|category, id?, title, note, fields{}, source}` → `201 {data:{id,status,warnings[],review_url}}`; `GET /proposals` | đọc `outbox/*.md\|json` sau mỗi lượt chat → gửi → `outbox/sent/`, `outbox/STATUS.md` |
 
 Mỗi mục nên có thêm: `kind`, `focus_keyword`, `seo_score`, `seo_issues[]`, `admin_url`. Website **không áp dụng** đề xuất ngay — đưa vào hàng chờ duyệt;
-lọc cột được phép, làm sạch HTML, cảnh báo trùng tiêu đề / từ khoá / bài gần giống. Bản cài đặt mẫu: website hethongvinpearlresort (PHP, `api/handlers/agent.php`).
+lọc cột được phép, làm sạch HTML, cảnh báo trùng tiêu đề / từ khoá / bài gần giống.
 
 ## Dự kiến (giai đoạn sau)
 - `GET  {base}/posts/{id}` — nội dung đầy đủ (HTML/Markdown) để agent rà soát chi tiết.
@@ -49,3 +49,4 @@ $key = getenv('AGENT_API_KEY');
 if (!hash_equals($key, preg_replace('/^Bearer /', '', $_SERVER['HTTP_AUTHORIZATION'] ?? ''))) { http_response_code(401); exit; }
 ```
 Thử nhanh phía backend bằng website giả lập: `npm run mock-site` (cổng 4000, key `dev-key`).
+Test tự động dùng một website giả lập đầy đủ hơn (có `/proposals`): xem `test/app.shared.mjs`.

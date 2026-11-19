@@ -1,11 +1,11 @@
 <?php
 /**
- * Tích hợp Agy Chat vào admin PHP. Không cần Composer, PHP >= 7.4.
+ * cms-content-agent integration for a PHP admin. No Composer needed, PHP >= 7.4.
  *
  * Token = base64url(JSON payload) . "." . base64url(HMAC-SHA256(phần đầu, secret))
  * Secret là `tokenSecret` của site trong config/sites.json trên backend; KHÔNG bao giờ gửi xuống trình duyệt.
  */
-final class AgyChat
+final class ContentAgent
 {
     private static function b64u(string $bin): string
     {
@@ -28,7 +28,7 @@ final class AgyChat
         return $payload . '.' . self::b64u(hash_hmac('sha256', $payload, $secret, true));
     }
 
-    /** Thẻ <script> nhúng widget. $tokenUrl là endpoint PHP trả {"token": "..."} (xem agy-token.php). */
+    /** Thẻ <script> nhúng widget. $tokenUrl là endpoint PHP trả {"token": "..."} (xem token.php). */
     public static function embed(string $agentBaseUrl, string $tokenUrl, array $opts = []): string
     {
         $attr = static fn(string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');

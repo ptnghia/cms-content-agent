@@ -1,14 +1,20 @@
 {
-  "name": "agent-agy",
-  "version": "0.2.0",
-  "description": "Backend chatbot quản trị nội dung & SEO chạy trên agy CLI, kèm widget nhúng vào admin PHP",
+  "name": "cms-content-agent",
+  "version": "0.3.0",
+  "description": "Self-hosted AI content & SEO assistant for CMS admin panels: embeddable chat widget, content sync, review-before-publish proposals, pluggable agent CLIs (Claude Code, Codex, agy).",
   "type": "module",
   "private": true,
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/ptnghia/cms-content-agent.git" },
+  "keywords": ["seo", "cms", "content", "ai-agent", "claude-code", "codex", "chat-widget", "php"],
   "scripts": {
     "start": "node server/server.mjs",
-    "dev": "node --env-file-if-exists=.env server/server.mjs",
+    "dev": "DEV_MODE=1 node server/server.mjs",
     "mock-site": "node dev/mock-site.mjs",
-    "smoke": "node bridge/smoke.mjs"
+    "smoke": "node bridge/smoke.mjs",
+    "test": "node --test --test-reporter=spec \"test/*.test.mjs\"",
+    "check": "node --check server/*.mjs server/store/*.mjs bridge/*.mjs bridge/adapters/*.mjs scripts/*.mjs dev/*.mjs web/widget.js",
+    "migrate:sqlite": "node scripts/migrate-file-to-sqlite.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=22.13" }
 }

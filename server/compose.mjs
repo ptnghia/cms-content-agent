@@ -13,7 +13,7 @@ const SCOPES = {
 };
 const TYPES = {
   post: 'bài viết tin tức',
-  product: 'SẢN PHẨM (trang bán villa / combo / phòng / tour)',
+  product: 'SẢN PHẨM (trang bán sản phẩm / dịch vụ / gói)',
   category: 'DANH MỤC (trang điểm đến / nhóm sản phẩm)',
 };
 const TARGETS = { mo_ta: 'Mô tả ngắn (mo_ta)', noi_dung: 'Nội dung (noi_dung)', noi_dung_1: 'Bài viết chi tiết (noi_dung_1)' };
