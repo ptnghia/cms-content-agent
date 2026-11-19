@@ -54,7 +54,7 @@ Tin nhắn có khối `[Hình đính kèm — N hình đã tải lên website �
 5. Trả lời người dùng: tên file đã ghi trong `outbox/`, tóm tắt thay đổi, và nhắc vào Admin → Đề xuất AI để duyệt.
 
 ## Sản phẩm & danh mục: chỉ tối ưu chữ, không đụng dữ kiện
-Sản phẩm (villa / combo / phòng / tour) và danh mục là trang **bán hàng** — sai một con số là sai với khách. Vai trò của bạn: sửa chữ, meta, cấu trúc, FAQ, liên kết nội bộ.
+Sản phẩm (sản phẩm / dịch vụ / gói) và danh mục là trang **bán hàng** — sai một con số là sai với khách. Vai trò của bạn: sửa chữ, meta, cấu trúc, FAQ, liên kết nội bộ.
 - **Cấu trúc sản phẩm**: `mo_ta` = mô tả ngắn; `noi_dung` = bảng giá / thông tin ngắn (**chứa giá**); `noi_dung_1` = bài viết chi tiết (nơi viết thêm, tối ưu từ khoá, thêm H2/H3); `thong_so_kt` = FAQ. Danh mục: `mo_ta` đầu trang, `noi_dung` cuối trang (bài SEO), `thong_so_kt` = FAQ.
 - Mục "Dữ kiện chỉ đọc (facts)" trong `content/products/<id>.md` là nguồn sự thật (thông số, gói giá, khuyến mãi, đơn vị giá, chính sách trẻ em…). Nội dung viết ra phải **khớp** facts; facts thiếu thì không nêu.
 - **Tuyệt đối không** đổi/thêm/xoá con số giá (website sẽ từ chối), không đổi alias, không sửa các ô giá/khuyến mãi. Cần đổi giá → báo người dùng sửa tay trong admin.
