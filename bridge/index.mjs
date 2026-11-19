@@ -1,60 +1,101 @@
-// Điều phối agent CLI: AGENT_BACKEND (agy | codex) là chính, AGENT_FALLBACK là dự phòng khi chính lỗi.
-// id hội thoại trả ra có tiền tố "<backend>:" để lượt sau nối tiếp đúng CLI (id không tiền tố = agy, dữ liệu cũ).
-const NAMES = ['agy', 'codex'];
-const pick = (v, def) => {
-  const b = (v || def || '').toLowerCase();
-  if (b && !NAMES.includes(b)) throw new Error(`Backend không hợp lệ: ${b} (${NAMES.join(' | ')})`);
-  return b;
+// Agent CLI router. AGENT_BACKEND picks the primary adapter, AGENT_FALLBACK an optional backup that
+// takes over when the primary fails (cannot start, exits with an error, times out).
+//
+// Session ids are stored as "<adapter>:<id>" so a conversation always resumes on the CLI that created
+// it (a bare id without prefix is legacy agy data).
+//
+// Adding a CLI = add bridge/adapters/<name>.mjs exporting `name` and `runTurn` (see RunTurn below)
+// and list it in ADAPTERS. Nothing else in the server needs to change.
+
+/**
+ * @typedef {{inputTokens:number, outputTokens:number, cachedTokens:number, costUsd:number}} Usage
+ * @typedef {object} TurnOptions
+ * @property {string} prompt
+ * @property {string} cwd                     agent workspace
+ * @property {string[]} [addDirs]             extra read-only folders (knowledge/, skills/, ...)
+ * @property {string} [sessionId]             resume this CLI session
+ * @property {(ev: object) => void} onEvent   {type:'init',sessionId} | {type:'delta',text} | {type:'step',stepType,state}
+ * @property {AbortSignal} [signal]
+ * @typedef {{sessionId?:string, response:string, status:string, denied:string[], usage:Usage}} TurnResult
+ * @typedef {(opts: TurnOptions) => Promise<TurnResult>} RunTurn
+ */
+
+export const ADAPTERS = {
+  agy: () => import('./adapters/agy.mjs'),
+  codex: () => import('./adapters/codex.mjs'),
+  claude: () => import('./adapters/claude.mjs'),
 };
-const primary = pick(process.env.AGENT_BACKEND, 'agy');
-const fallback = pick(process.env.AGENT_FALLBACK, '') === primary ? '' : pick(process.env.AGENT_FALLBACK, '');
-const cooldownMs = Number(process.env.AGENT_FALLBACK_COOLDOWN_SEC || 300) * 1000;
 
-export const AGENT_BACKEND = primary;
-export const AGENT_FALLBACK = fallback;
-
-const mods = {};
-const load = async (name) => (mods[name] ??= (await import(`./${name}-client.mjs`)).runTurn);
-const downUntil = {};   // backend -> thời điểm được thử lại (circuit breaker đơn giản)
-
-function splitId(id) {
-  const m = /^(agy|codex):(.+)$/.exec(id || '');
-  return m ? { backend: m[1], raw: m[2] } : id ? { backend: 'agy', raw: id } : {};
+export function parseSessionId(id) {
+  if (!id) return {};
+  const m = /^([a-z][a-z0-9_-]*):(.+)$/.exec(id);
+  if (m && Object.hasOwn(ADAPTERS, m[1])) return { backend: m[1], raw: m[2] };
+  return { backend: 'agy', raw: id };
 }
 
-export async function runTurn(opts) {
-  const { backend: resumeBackend, raw } = splitId(opts.agyConversationId);
-  // Nối tiếp hội thoại: bắt buộc đúng CLI đã tạo ra nó (lỗi → server tự dựng lại hội thoại mới từ lịch sử).
-  let order;
-  if (resumeBackend) order = [resumeBackend];
-  else {
-    order = fallback ? [primary, fallback] : [primary];
-    if (fallback && Date.now() < (downUntil[primary] || 0)) order.reverse();   // chính vừa lỗi → dùng dự phòng trước
+const checkName = (v, label) => {
+  const b = String(v || '').trim().toLowerCase();
+  if (b && !Object.hasOwn(ADAPTERS, b)) throw new Error(`${label}: unknown agent backend "${b}" (${Object.keys(ADAPTERS).join(' | ')})`);
+  return b;
+};
+
+/**
+ * @param {{primary?:string, fallback?:string, cooldownMs?:number, adapters?:Record<string, () => Promise<{runTurn: RunTurn}>>, log?:(msg:string)=>void}} [o]
+ */
+export function createRouter(o = {}) {
+  const adapters = o.adapters || ADAPTERS;
+  const primary = checkName(o.primary ?? process.env.AGENT_BACKEND ?? 'claude', 'AGENT_BACKEND') || 'claude';
+  let fallback = checkName(o.fallback ?? process.env.AGENT_FALLBACK ?? '', 'AGENT_FALLBACK');
+  if (fallback === primary) fallback = '';
+  const cooldownMs = o.cooldownMs ?? Number(process.env.AGENT_FALLBACK_COOLDOWN_SEC || 300) * 1000;
+  const log = o.log || ((m) => console.warn(m));
+  const loaded = {};
+  const downUntil = {};   // adapter -> timestamp until which it is skipped (simple circuit breaker)
+  const load = async (n) => (loaded[n] ??= (await adapters[n]()).runTurn);
+
+  /** @param {TurnOptions} opts @returns {Promise<TurnResult & {backend:string}>} */
+  async function runTurn(opts) {
+    const { backend: resumeWith, raw } = parseSessionId(opts.sessionId);
+    let order;
+    if (resumeWith) order = [resumeWith];   // resume must use the same CLI; the server rebuilds context on failure
+    else {
+      order = fallback ? [primary, fallback] : [primary];
+      if (fallback && Date.now() < (downUntil[primary] || 0)) order.reverse();
+    }
+
+    let lastErr;
+    for (const n of order) {
+      let sawDelta = false;
+      const onEvent = (ev) => {
+        if (ev.type === 'delta') sawDelta = true;
+        if (ev.type === 'init') ev = { ...ev, sessionId: ev.sessionId ? `${n}:${ev.sessionId}` : ev.sessionId };
+        opts.onEvent?.(ev);
+      };
+      try {
+        const run = await load(n);
+        const out = await run({ ...opts, sessionId: raw, onEvent });
+        downUntil[n] = 0;
+        return { ...out, sessionId: out.sessionId ? `${n}:${out.sessionId}` : out.sessionId, backend: n };
+      } catch (err) {
+        lastErr = err;
+        if (opts.signal?.aborted) throw err;
+        if (fallback) downUntil[n] = Date.now() + cooldownMs;
+        // Text already streamed to the user cannot be replayed by another CLI without duplicating it.
+        if (sawDelta || n === order[order.length - 1]) break;
+        log(`[agent] ${n} failed (${err.message}) -> switching to ${order[order.indexOf(n) + 1]}`);
+        opts.onEvent?.({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
+      }
+    }
+    if (order.length > 1) lastErr.message += ` (tried: ${order.join(' -> ')})`;
+    throw lastErr;
   }
 
-  let lastErr;
-  for (const name of order) {
-    let sawDelta = false;
-    const onEvent = (ev) => {
-      if (ev.type === 'delta') sawDelta = true;
-      if (ev.type === 'init') ev = { ...ev, agyConversationId: `${name}:${ev.agyConversationId}` };
-      opts.onEvent(ev);
-    };
-    try {
-      const run = await load(name);
-      const out = await run({ ...opts, agyConversationId: raw, onEvent });
-      downUntil[name] = 0;
-      return { ...out, agyConversationId: out.agyConversationId ? `${name}:${out.agyConversationId}` : out.agyConversationId, backend: name };
-    } catch (err) {
-      lastErr = err;
-      if (opts.signal?.aborted) throw err;
-      if (fallback) downUntil[name] = Date.now() + cooldownMs;
-      // Đã stream chữ cho người dùng thì không thể chạy lại bằng CLI khác (trùng nội dung).
-      if (sawDelta || name === order[order.length - 1]) break;
-      console.warn(`[agent] ${name} lỗi (${err.message}) → chuyển sang ${order[order.indexOf(name) + 1]}`);
-      opts.onEvent({ type: 'step', stepType: 'retry', state: 'ACTIVE' });
-    }
-  }
-  if (order.length > 1) lastErr.message += ` (đã thử: ${order.join(' → ')})`;
-  throw lastErr;
+  return { runTurn, primary, fallback };
+}
+
+let defaultRouter;
+/** Router configured from the environment (created on first use). */
+export function runTurn(opts) {
+  defaultRouter ??= createRouter();
+  return defaultRouter.runTurn(opts);
 }

@@ -1,4 +1,4 @@
-// Nạp .env, cấu hình chung và danh sách site.
+// Loads .env, global settings and the site list (config/sites.json).
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -26,18 +26,21 @@ export const config = {
   maxConcurrent: Number(process.env.MAX_CONCURRENT || 2),
   maxMessageChars: Number(process.env.MAX_MESSAGE_CHARS || 8000),
   syncIntervalMin: Number(process.env.SYNC_INTERVAL_MIN || 0),
+  chatPerHour: Number(process.env.CHAT_PER_HOUR ?? 60),
+  composePerHour: Number(process.env.COMPOSE_PER_HOUR ?? 12),
+  workspaceLock: process.env.WORKSPACE_LOCK !== '0',
   devMode: process.env.DEV_MODE === '1',
 };
 
 export function loadSites() {
   if (!existsSync(config.sitesFile)) {
-    throw new Error(`Thiếu ${config.sitesFile} (sao chép từ config/sites.example.json)`);
+    throw new Error(`Missing ${config.sitesFile} (copy config/sites.example.json)`);
   }
   const sites = JSON.parse(readFileSync(config.sitesFile, 'utf8'));
   for (const [id, s] of Object.entries(sites)) {
-    if (!/^[a-z0-9_-]{1,40}$/i.test(id)) throw new Error(`siteId không hợp lệ: ${id}`);
-    if (!s.tokenSecret || s.tokenSecret.length < 16) throw new Error(`site "${id}": tokenSecret quá ngắn`);
-    if (s.translationOf && (!sites[s.translationOf] || s.translationOf === id)) throw new Error(`site "${id}": translationOf "${s.translationOf}" không tồn tại`);
+    if (!/^[a-z0-9_-]{1,40}$/i.test(id)) throw new Error(`Invalid siteId: ${id}`);
+    if (!s.tokenSecret || s.tokenSecret.length < 16) throw new Error(`site "${id}": tokenSecret must be at least 16 characters`);
+    if (s.translationOf && (!sites[s.translationOf] || s.translationOf === id)) throw new Error(`site "${id}": translationOf "${s.translationOf}" does not exist`);
   }
   return sites;
 }
