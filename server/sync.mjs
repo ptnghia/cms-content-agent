@@ -2,7 +2,8 @@
 // The agent only READS the result (posts/index.json, posts/index.md, ...); it never calls the network itself.
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
-import { ensureWorkspace } from './store.mjs';
+import { config } from './config.mjs';
+import { ensureWorkspaceDirs } from './store/common.mjs';
 import { syncExtended, hasFeature } from './content-sync.mjs';
 import { withUnlocked } from './workspace-guard.mjs';
 import { recordSyncResult } from './sync-monitor.mjs';
@@ -84,7 +85,7 @@ export function syncPosts(siteId, site) {
 
 async function doSync(siteId, site) {
   if (!site.api?.base || !site.api?.key) throw new Error('Site has no api.base / api.key');
-  const ws = await ensureWorkspace(siteId);
+  const ws = await ensureWorkspaceDirs(config.dataDir, siteId);
   return withUnlocked(ws, () => syncInto(ws, site));
 }
 

@@ -30,9 +30,10 @@ final class Admin {
 	public static function menu(): void {
 		$pending = Proposals::count( 'pending' );
 		$bubble  = $pending ? ' <span class="awaiting-mod"><span class="pending-count">' . (int) $pending . '</span></span>' : '';
-		add_menu_page( __( 'Content Agent', 'content-agent' ), __( 'Content Agent', 'content-agent' ) . $bubble, self::QUEUE_CAP, 'content-agent', array( self::class, 'page_proposals' ), 'dashicons-format-chat', 26 );
+		add_menu_page( Brand::name(), esc_html( Brand::name() ) . $bubble, self::QUEUE_CAP, 'content-agent', array( self::class, 'page_proposals' ), 'dashicons-format-chat', 26 );
 		add_submenu_page( 'content-agent', __( 'Proposals', 'content-agent' ), __( 'Proposals', 'content-agent' ), self::QUEUE_CAP, 'content-agent', array( self::class, 'page_proposals' ) );
-		add_submenu_page( 'content-agent', __( 'Content Agent settings', 'content-agent' ), __( 'Settings', 'content-agent' ), 'manage_options', 'content-agent-settings', array( self::class, 'page_settings' ) );
+		/* translators: %s: plugin brand name */
+		add_submenu_page( 'content-agent', sprintf( __( '%s settings', 'content-agent' ), Brand::name() ), __( 'Settings', 'content-agent' ), 'manage_options', 'content-agent-settings', array( self::class, 'page_settings' ) );
 	}
 
 	public static function action_links( array $links ): array {
@@ -50,9 +51,10 @@ final class Admin {
 		}
 		printf(
 			'<div class="notice notice-info"><p>%s <a href="%s">%s</a></p></div>',
-			esc_html__( 'Content Agent is installed but not connected to a backend yet.', 'content-agent' ),
+			/* translators: %s: plugin brand name */
+			esc_html( sprintf( __( '%s is installed but not connected yet.', 'content-agent' ), Brand::name() ) ),
 			esc_url( admin_url( 'admin.php?page=content-agent-settings' ) ),
-			esc_html__( 'Finish setup', 'content-agent' )
+			'' !== Brand::service_url() ? esc_html__( 'Connect now', 'content-agent' ) : esc_html__( 'Finish setup', 'content-agent' )
 		);
 	}
 
@@ -225,10 +227,19 @@ final class Admin {
 				'rejected' => __( 'Proposal rejected.', 'content-agent' ),
 				'reverted' => __( 'Proposal reverted.', 'content-agent' ),
 				'saved'    => __( 'Settings saved.', 'content-agent' ),
+				'connected' => __( 'Connected. The assistant is ready in wp-admin; the first sync is running on the service.', 'content-agent' ),
+				'disconnected' => __( 'Disconnected. The keys the service held no longer work.', 'content-agent' ),
 			);
 			$done = sanitize_key( wp_unslash( $_GET['ca_done'] ) );
 			if ( isset( $msgs[ $done ] ) ) {
 				echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $msgs[ $done ] ) . '</p></div>';
+			}
+		}
+		if ( isset( $_GET['ca_err'] ) ) {
+			$errors = Connect::error_messages();
+			$err    = sanitize_key( wp_unslash( $_GET['ca_err'] ) );
+			if ( isset( $errors[ $err ] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $errors[ $err ] ) . '</p></div>';
 			}
 		}
 		if ( isset( $_GET['ca_error'] ) ) {
@@ -419,17 +430,26 @@ final class Admin {
 		}
 		$s      = Settings::get();
 		$health = self::backend_health( (string) $s['backend_url'] );
-		echo '<div class="wrap content-agent"><h1>' . esc_html__( 'Content Agent settings', 'content-agent' ) . '</h1>';
+		/* translators: %s: plugin brand name */
+		echo '<div class="wrap content-agent"><h1>' . esc_html( sprintf( __( '%s settings', 'content-agent' ), Brand::name() ) ) . '</h1>';
 		self::notice_from_query();
+		self::render_connect( $s );
+		$via_service = Settings::via_service();
 
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		wp_nonce_field( 'content_agent_settings' );
 		echo '<input type="hidden" name="action" value="content_agent_settings"><table class="form-table" role="presentation">';
-		self::row(
-			__( 'Backend URL', 'content-agent' ),
-			'<input type="url" name="backend_url" class="regular-text code" value="' . esc_attr( $s['backend_url'] ) . '" placeholder="https://agent.example.com"> ' . $health . '<p class="description">' . esc_html__( 'Where the cms-content-agent service runs (HTTPS).', 'content-agent' ) . '</p>'
-		);
-		self::row( __( 'Site ID', 'content-agent' ), '<input type="text" name="site_id" class="regular-text code" pattern="[A-Za-z0-9_-]{1,40}" value="' . esc_attr( $s['site_id'] ) . '"><p class="description">' . esc_html__( 'Key of this site in the backend config. Letters, numbers, - and _.', 'content-agent' ) . '</p>' );
+		if ( $via_service ) {
+			// Set by the service; editing them by hand would break the connection.
+			self::row( __( 'Backend URL', 'content-agent' ), '<code>' . esc_html( $s['backend_url'] ) . '</code> ' . $health );
+			self::row( __( 'Site ID', 'content-agent' ), '<code>' . esc_html( $s['site_id'] ) . '</code>' );
+		} else {
+			self::row(
+				__( 'Backend URL', 'content-agent' ),
+				'<input type="url" name="backend_url" class="regular-text code" value="' . esc_attr( $s['backend_url'] ) . '" placeholder="https://agent.example.com"> ' . $health . '<p class="description">' . esc_html__( 'Where the cms-content-agent service runs (HTTPS).', 'content-agent' ) . '</p>'
+			);
+			self::row( __( 'Site ID', 'content-agent' ), '<input type="text" name="site_id" class="regular-text code" pattern="[A-Za-z0-9_-]{1,40}" value="' . esc_attr( $s['site_id'] ) . '"><p class="description">' . esc_html__( 'Key of this site in the backend config. Letters, numbers, - and _.', 'content-agent' ) . '</p>' );
+		}
 		self::row( __( 'Assistant name', 'content-agent' ), '<input type="text" name="assistant_name" class="regular-text" value="' . esc_attr( $s['assistant_name'] ) . '" placeholder="' . esc_attr__( 'Content assistant', 'content-agent' ) . '">' );
 		self::row( __( 'Chat widget', 'content-agent' ), '<label><input type="checkbox" name="widget_enabled" value="1"' . checked( $s['widget_enabled'], true, false ) . '> ' . esc_html__( 'Show the chat button in wp-admin', 'content-agent' ) . '</label>' );
 		$caps = array(
@@ -443,10 +463,17 @@ final class Admin {
 			$sel .= '<option value="' . esc_attr( $cap ) . '"' . selected( $s['capability'], $cap, false ) . '>' . esc_html( $label ) . '</option>';
 		}
 		self::row( __( 'Who can chat', 'content-agent' ), $sel . '</select><p class="description">' . esc_html__( 'Applying proposals still requires permission to edit the page concerned.', 'content-agent' ) . '</p>' );
-		self::row( __( 'Rotate secrets', 'content-agent' ), '<label><input type="checkbox" name="rotate" value="1"> ' . esc_html__( 'Generate a new token secret and API key (update the backend config afterwards)', 'content-agent' ) . '</label>' );
+		if ( ! $via_service ) {
+			self::row( __( 'Rotate secrets', 'content-agent' ), '<label><input type="checkbox" name="rotate" value="1"> ' . esc_html__( 'Generate a new token secret and API key (update the backend config afterwards)', 'content-agent' ) . '</label>' );
+		}
 		echo '</table>';
 		submit_button();
 		echo '</form>';
+		if ( $via_service ) {
+			echo '</div>';
+			self::styles();
+			return;
+		}
 
 		$snippet = wp_json_encode( Settings::backend_snippet(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 		echo '<h2>' . esc_html__( 'Backend configuration', 'content-agent' ) . '</h2>';
@@ -459,6 +486,38 @@ final class Admin {
 		echo '<li>' . esc_html__( 'REST API base', 'content-agent' ) . ': <code>' . esc_html( rest_url( Rest::NS ) ) . '</code></li>';
 		echo '</ul></div>';
 		self::styles();
+	}
+
+	/** "Connect to <service>" box, shown only by builds that have a service (Brand::service_url()). */
+	private static function render_connect( array $s ): void {
+		$service = Brand::service_url();
+		if ( '' === $service ) {
+			return;
+		}
+		$host = (string) wp_parse_url( $service, PHP_URL_HOST );
+		echo '<div class="card" style="max-width:720px"><h2>' . esc_html( Brand::name() ) . '</h2>';
+		if ( Settings::via_service() && Settings::is_connected() ) {
+			/* translators: %s: service host name */
+			echo '<p><span class="ca-status ca-applied">' . esc_html__( 'Connected', 'content-agent' ) . '</span> ' . esc_html( sprintf( __( 'This site is connected to %s.', 'content-agent' ), $host ) ) . '</p>';
+			$label = __( 'Connect again (new keys)', 'content-agent' );
+		} else {
+			/* translators: %s: service host name */
+			echo '<p>' . esc_html( sprintf( __( 'Connect this site to %s in one click: sign in, choose your workspace, and you are done. No keys to copy.', 'content-agent' ), $host ) ) . '</p>';
+			$label = __( 'Connect', 'content-agent' );
+		}
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		wp_nonce_field( 'content_agent_connect' );
+		echo '<input type="hidden" name="action" value="content_agent_connect">';
+		submit_button( $label, 'primary', 'submit', false );
+		echo '</form>';
+		if ( Settings::via_service() ) {
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin-top:8px">';
+			wp_nonce_field( 'content_agent_disconnect' );
+			echo '<input type="hidden" name="action" value="content_agent_disconnect">';
+			submit_button( __( 'Disconnect', 'content-agent' ), 'secondary', 'submit', false );
+			echo '</form>';
+		}
+		echo '</div>';
 	}
 
 	private static function row( string $label, string $html ): void {
@@ -482,6 +541,7 @@ final class Admin {
 		}
 		check_admin_referer( 'content_agent_settings' );
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$via_service = Settings::via_service();
 		$caps    = array( 'edit_posts', 'publish_posts', 'edit_others_posts', 'manage_options' );
 		$cap     = isset( $_POST['capability'] ) ? sanitize_key( wp_unslash( $_POST['capability'] ) ) : 'edit_others_posts';
 		$site_id = isset( $_POST['site_id'] ) ? preg_replace( '/[^A-Za-z0-9_-]/', '', wp_unslash( $_POST['site_id'] ) ) : '';
@@ -493,7 +553,10 @@ final class Admin {
 			'capability'     => in_array( $cap, $caps, true ) ? $cap : 'edit_others_posts',
 		);
 		// phpcs:enable
-		if ( ! empty( $_POST['rotate'] ) || strlen( (string) Settings::get( 'token_secret' ) ) < 32 ) {
+		if ( $via_service ) {
+			// The service owns these; reconnect to change them.
+			unset( $changes['backend_url'], $changes['site_id'] );
+		} elseif ( ! empty( $_POST['rotate'] ) || strlen( (string) Settings::get( 'token_secret' ) ) < 32 ) {
 			$changes['token_secret'] = Settings::random();
 			$changes['api_key']      = Settings::random();
 		}

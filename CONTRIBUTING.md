@@ -38,14 +38,16 @@ For a live check against a real CLI: `AGENT_BACKEND=claude npm run smoke`.
 | Path | |
 |---|---|
 | `bridge/adapters/*.mjs` | one file per agent CLI (`runTurn` contract in `bridge/index.mjs`) |
-| `server/app.mjs` | HTTP routes, chat / compose flows |
+| `server/app.mjs` | HTTP routes, chat / compose flows, turn hooks |
+| `server/index.mjs` | public API for embedding (docs/EMBEDDING.md) |
+| `server/site-provider.mjs`, `server/internal.mjs` | site lookup contract, optional `/internal/*` routes |
 | `server/store/*.mjs` | storage drivers (file, sqlite), contract in `server/store.mjs` |
 | `server/sync.mjs`, `server/content-sync.mjs` | website → workspace sync |
 | `server/outbox.mjs` | proposals → website review queue |
 | `agent/*.md` | system prompts (English; the agent writes in the site's language) |
 | `skills/<name>/SKILL.md` | skills shared by every CLI |
 | `web/widget.js` | the embeddable widget (vanilla JS, Shadow DOM) |
-| `wordpress/content-agent/` | the WordPress plugin (REST API, review queue, chat embed, block-editor sidebar) |
+| `wordpress/content-agent/` | the WordPress plugin (REST API, review queue, chat embed, block-editor sidebar, Connect flow) |
 
 ## Common contributions
 

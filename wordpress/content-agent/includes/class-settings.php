@@ -22,6 +22,9 @@ final class Settings {
 			'widget_enabled' => true,
 			'capability'     => 'edit_others_posts',   // chat reads drafts and private content through the API key
 			'assistant_name' => '',
+			// Set by the "Connect" flow (class-connect.php): the service now owns the secrets.
+			'connected_service' => '',
+			'connected_at'      => '',
 		);
 	}
 
@@ -56,6 +59,15 @@ final class Settings {
 		$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
 		$id   = trim( preg_replace( '/[^a-z0-9_-]+/', '-', strtolower( $host ) ), '-' );
 		return substr( $id ? $id : 'wordpress', 0, 40 );
+	}
+
+	/**
+	 * Connected through this build's hosted service ("Connect" flow). A build without that service
+	 * (e.g. the open-source plugin installed over a branded one) falls back to manual settings.
+	 */
+	public static function via_service(): bool {
+		$service = (string) self::get( 'connected_service' );
+		return '' !== $service && Brand::service_url() === $service;
 	}
 
 	public static function is_connected(): bool {
