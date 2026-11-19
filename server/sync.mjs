@@ -4,6 +4,8 @@ import { readFile, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { ensureWorkspace } from './store.mjs';
 import { syncExtended, hasFeature } from './content-sync.mjs';
+import { withUnlocked } from './workspace-guard.mjs';
+import { recordSyncResult } from './sync-monitor.mjs';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 200;
@@ -72,7 +74,10 @@ function buildStats(posts, syncedAt) {
 
 export function syncPosts(siteId, site) {
   if (inflight.has(siteId)) return inflight.get(siteId);
-  const p = doSync(siteId, site).finally(() => inflight.delete(siteId));
+  const p = doSync(siteId, site)
+    .then(async (r) => { await recordSyncResult(siteId, site, null); return r; },
+      async (e) => { await recordSyncResult(siteId, site, e); throw e; })
+    .finally(() => inflight.delete(siteId));
   inflight.set(siteId, p);
   return p;
 }
@@ -80,6 +85,10 @@ export function syncPosts(siteId, site) {
 async function doSync(siteId, site) {
   if (!site.api?.base || !site.api?.key) throw new Error('Site chưa cấu hình api.base/api.key');
   const ws = await ensureWorkspace(siteId);
+  return withUnlocked(ws, () => syncInto(ws, site));
+}
+
+async function syncInto(ws, site) {
   const full = [];
   const withContent = hasFeature(site, 'content');   // lấy luôn nội dung trong cùng lượt (site hỗ trợ ?include=content)
   for (let page = 1; page <= MAX_PAGES; page++) {
