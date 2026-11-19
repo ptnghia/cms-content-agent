@@ -13,6 +13,9 @@ RUN set -eux; \
     npm cache clean --force
 
 WORKDIR /app
+# The only npm dependency is the Anthropic SDK (AGENT_BACKEND=api).
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 COPY --chown=node:node . .
 RUN mkdir -p /data && chown node:node /data
 

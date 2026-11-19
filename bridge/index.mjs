@@ -24,6 +24,7 @@ export const ADAPTERS = {
   agy: () => import('./adapters/agy.mjs'),
   codex: () => import('./adapters/codex.mjs'),
   claude: () => import('./adapters/claude.mjs'),
+  api: () => import('./adapters/api.mjs'),   // Messages API, no CLI (needs ANTHROPIC_API_KEY)
 };
 
 export function parseSessionId(id) {
