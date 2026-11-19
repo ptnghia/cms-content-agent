@@ -31,6 +31,8 @@ final class Proposals {
 				'query_var'       => false,
 				'supports'        => array( 'title', 'editor' ),
 				'capability_type' => 'post',
+				'capabilities'    => array( 'create_posts' => 'do_not_allow' ),
+				'map_meta_cap'    => true,
 			)
 		);
 	}
@@ -112,6 +114,10 @@ final class Proposals {
 				$count   = '' === $find ? 0 : substr_count( $current, $find );
 				if ( 1 !== $count ) {
 					$errors[] = sprintf( 'Patch %d on "%s": the text to find occurs %d times (must be exactly once; copy it verbatim and make it longer if needed)', $n + 1, $field, $count );
+					continue;
+				}
+				if ( self::splits_tag( $current, $find, $replace ) ) {
+					$errors[] = sprintf( 'Patch %d on "%s": "find" and "replace" must be whole text or whole tags, not part of an HTML tag', $n + 1, $field );
 					continue;
 				}
 				$number_change = self::numbers_removed( $type, $find, $replace );
@@ -312,6 +318,30 @@ final class Proposals {
 			return array_unique( $m[0] );
 		};
 		return array_values( array_diff( $get( $before ), $get( $after ) ) );
+	}
+
+	/**
+	 * True when a patch would edit the inside of an HTML tag (e.g. add an onclick attribute): wp_kses_post()
+	 * sees "replace" as plain text in that case and cannot filter it.
+	 */
+	private static function splits_tag( string $current, string $find, string $replace ): bool {
+		$pos    = strpos( $current, $find );
+		$before = substr( $current, 0, (int) $pos );
+		$after  = substr( $current, (int) $pos + strlen( $find ) );
+		$open   = strrpos( $before, '<' );
+		if ( false !== $open && ( false === strrpos( $before, '>' ) || strrpos( $before, '>' ) < $open ) ) {
+			return true;   // match starts inside a tag
+		}
+		$close = strpos( $after, '>' );
+		if ( false !== $close && ( false === strpos( $after, '<' ) || strpos( $after, '<' ) > $close ) ) {
+			return true;   // match ends inside a tag
+		}
+		foreach ( array( $find, $replace ) as $s ) {
+			if ( substr_count( $s, '<' ) !== substr_count( $s, '>' ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static function collect_warnings( string $action, string $type, $target, array $fields, array &$warn ): void {
@@ -606,6 +636,9 @@ final class Proposals {
 		}
 		if ( 'create' === $p['action'] ) {
 			if ( $p['result_id'] && get_post( $p['result_id'] ) ) {
+				if ( ! current_user_can( 'delete_post', $p['result_id'] ) ) {
+					return new \WP_Error( 'content_agent_forbidden', __( 'You are not allowed to delete the created post.', 'content-agent' ) );
+				}
 				wp_trash_post( $p['result_id'] );
 			}
 		} else {

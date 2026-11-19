@@ -14,6 +14,8 @@
   var t = cfg.i18n;
   if (!PluginSidebar) return;
 
+  // Model output is untrusted: strip scripts and event-handler attributes before previewing it.
+  var safeHTML = function (html) { return wp.dom && wp.dom.safeHTML ? wp.dom.safeHTML(html) : ''; };
   var stripBlocks = function (s) { return String(s || '').replace(/<!--\s*\/?wp:[^>]*?-->\s*/g, '').trim(); };
 
   function getToken() {
@@ -145,7 +147,7 @@
           f.excerpt && h(C.Button, { variant: 'secondary', onClick: function () { editor.editPost({ excerpt: f.excerpt.replace(/<[^>]*>/g, '') }); done(); } }, t.useExcerpt),
           f.body && h(C.Button, { variant: 'primary', onClick: function () { blockEditor.resetBlocks(toBlocks(f.body)); done(); } }, t.replace),
           f.body && h(C.Button, { variant: 'secondary', onClick: function () { blockEditor.insertBlocks(toBlocks(f.body)); done(); } }, t.append)),
-        f.body && h('details', null, h('summary', null, 'HTML'), h('div', { className: 'content-agent-preview', style: { maxHeight: '320px', overflow: 'auto', fontSize: '12px' }, dangerouslySetInnerHTML: { __html: f.body } })),
+        f.body && h('details', null, h('summary', null, 'HTML'), h('div', { className: 'content-agent-preview', style: { maxHeight: '320px', overflow: 'auto', fontSize: '12px' }, dangerouslySetInnerHTML: { __html: safeHTML(f.body) } })),
         (f.meta_title || f.meta_description || f.meta_keywords) && h('div', { style: { marginTop: '12px' } },
           h('strong', null, t.seo),
           !seoNative && h('p', { className: 'description' }, t.seoPlugin),

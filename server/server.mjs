@@ -14,6 +14,10 @@ for (const id of Object.keys(sites)) {
 }
 
 const server = createApp({ sites, runTurn: router.runTurn });
+if (config.devMode && !/^(127\.0\.0\.1|localhost|::1)$/.test(config.host)) {
+  console.error('DEV_MODE=1 mints tokens without authentication: it only runs with HOST=127.0.0.1. Set DEV_MODE=0 in production.');
+  process.exit(1);
+}
 server.listen(config.port, config.host, () => {
   console.log(`cms-content-agent: http://${config.host}:${config.port}  sites=[${Object.keys(sites).join(', ')}]  ` +
     `agent=${router.primary}${router.fallback ? `->${router.fallback}` : ''}  store=${config.storeDriver}  dev=${config.devMode}`);

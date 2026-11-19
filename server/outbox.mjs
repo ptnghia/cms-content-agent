@@ -54,7 +54,7 @@ export function parseMarkdownProposal(text) {
   return { action: meta.action || 'update', type: meta.type, id: meta.id ? Number(meta.id) : undefined, title: meta.summary || '', note: meta.note || '', fields };
 }
 
-const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 function inlineMd(s) {
   return escHtml(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')

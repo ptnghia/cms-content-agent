@@ -55,6 +55,7 @@ No. It can only create proposals. Applying a proposal needs a logged-in user wit
 * The assistant writes in your site's language and replies in yours. English and Vietnamese UI.
 * Warns about internal links that point to no page on the site.
 * Chat widget loaded with wp_enqueue_script.
+* Security: built-in SEO title is sanitised and escaped; proposal patches cannot edit inside HTML tags; review queue and chat default to Editors and above; backend URL must use https.
 
 = 0.4.0 =
 * First release.

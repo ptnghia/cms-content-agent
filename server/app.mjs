@@ -152,10 +152,10 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
     if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: t(site, 'server_busy') }, cors);
     const rl = chatLimiter.take(`${siteId}:${uid}`);
     if (!rl.ok) return rateLimited(res, cors, rl, site);
-    conv ??= await store.createConversation(siteId, uid);
-
+    activeCount++;   // reserve the slot before awaiting, so parallel requests cannot all pass the check
+    if (conv) activeConvs.add(conv.id);
+    try { conv ??= await store.createConversation(siteId, uid); } catch (e) { activeCount--; if (conv) activeConvs.delete(conv.id); throw e; }
     activeConvs.add(conv.id);
-    activeCount++;
     const startedAt = Date.now();
     const meter = usageMeter();
     const { send, ping, ac } = openSse(res, cors);
@@ -385,7 +385,7 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
       res.writeHead(cors ? 204 : 403, cors || {});
       return void res.end();
     }
-    const fail = (e) => { if (!res.headersSent) sendJson(res, 500, { error: 'internal', message: e.message }); else res.end(); };
+    const fail = (e) => { console.error(`[http] ${req.method} ${p}: ${e.stack || e.message}`); if (!res.headersSent) sendJson(res, 500, { error: 'internal' }); else res.end(); };
     const wrap = (fn) => fn().catch(fail);
 
     if (req.method === 'GET' && p === '/api/health') return sendJson(res, 200, { ok: true });
@@ -402,7 +402,8 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
     if (m && req.method === 'GET') return void wrap(() => handleGetConversation(req, res, m[1]));
     if (m && req.method === 'DELETE') return void wrap(() => handleDelete(req, res, m[1]));
 
-    if (config.devMode) {
+    // Dev routes mint tokens without auth: loopback Host only (also blocks DNS rebinding).
+    if (config.devMode && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '')) {
       if (req.method === 'GET' && p === '/') return void serveFile(res, path.join(WEB, 'demo.html'), 'text/html; charset=utf-8');
       if (req.method === 'GET' && p === '/dev/token') {
         const siteId = url.searchParams.get('site') || Object.keys(sites)[0];

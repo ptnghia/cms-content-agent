@@ -30,7 +30,8 @@ final class Editor {
 					array(
 						'type'          => 'string',
 						'single'        => true,
-						'show_in_rest'  => true,
+						'show_in_rest'      => true,
+						'sanitize_callback' => 'sanitize_text_field',
 						'auth_callback' => static fn( $allowed, $meta_key, $post_id ) => current_user_can( 'edit_post', $post_id ),
 					)
 				);
@@ -49,7 +50,7 @@ final class Editor {
 		wp_enqueue_script(
 			'content-agent-editor',
 			CONTENT_AGENT_URL . 'assets/editor.js',
-			array( 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-blocks' ),
+			array( 'wp-plugins', 'wp-edit-post', 'wp-editor', 'wp-element', 'wp-components', 'wp-data', 'wp-blocks', 'wp-dom' ),
 			CONTENT_AGENT_VERSION,
 			true
 		);

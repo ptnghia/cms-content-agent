@@ -98,6 +98,14 @@ Lưu ý:
 - Dữ liệu đồng bộ (`posts/`, `content/`, `seo/`, `site/`, `outbox/sent/`…) được đặt **chỉ-đọc** giữa các lần đồng bộ
   (`WORKSPACE_LOCK=1`), nên agent chỉ ghi được `plans/`, `drafts/`, `outbox/`, `knowledge/` và `notes.md`. Lớp này dựa
   trên quyền file: không có tác dụng khi chạy bằng root hoặc trên Windows, và không thay được việc tắt công cụ shell.
+- **Claude Code** (`claude`) chạy với `--strict-mcp-config --setting-sources user` và luật chặn ghi vào thư mục
+  dùng chung (knowledge, skills), `CLAUDE.md` và `.claude/` trong workspace; đọc ngoài workspace bị CLI từ chối
+  (đã kiểm chứng với Claude Code 2.1). **`api`** giới hạn đọc/ghi ngay trong code (`bridge/workspace-tools.mjs`).
+- **Codex / agy** chưa có lớp giới hạn đọc tương đương: tiến trình agent đọc được mọi file mà user chạy dịch vụ đọc
+  được, kể cả `config/sites.json`. Nếu dùng chúng (kể cả làm `AGENT_FALLBACK`), hãy chạy agent bằng một user / container
+  riêng không đọc được `config/` và `data/` của site khác. Khuyến nghị dùng `claude` hoặc `api`.
+- Trong Docker, mã nguồn `/app` thuộc root nên agent (user `node`) không sửa được prompt, skill, knowledge.
+- `DEV_MODE=1` cấp token không cần đăng nhập: backend từ chối khởi động nếu `HOST` không phải 127.0.0.1.
 - Chạy dịch vụ bằng user riêng, chỉ có quyền trên thư mục cài đặt.
 - Giới hạn tần suất (`CHAT_PER_HOUR`, `COMPOSE_PER_HOUR`) tính theo từng tiến trình. Nếu chạy nhiều instance, cần đặt
   thêm giới hạn ở reverse proxy.

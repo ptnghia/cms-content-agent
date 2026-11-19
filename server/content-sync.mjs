@@ -82,7 +82,8 @@ async function writeCollection(ws, kind, items, blocksOf) {
   const dir = path.join(ws, 'content', kind);
   await rm(dir, { recursive: true, force: true });   // drop the old copy so pages deleted on the website disappear
   await mkdir(dir, { recursive: true });
-  for (const it of items) await atomicWrite(path.join(dir, `${it.id}.md`), contentFile(it, blocksOf(it)));
+  // ids come from the website and become file names: numbers only (no "../")
+  for (const it of items) if (/^\d{1,12}$/.test(String(it.id))) await atomicWrite(path.join(dir, `${it.id}.md`), contentFile(it, blocksOf(it)));
 }
 
 /** Compact table for products/index.md, categories/index.md */

@@ -16,7 +16,8 @@ WORKDIR /app
 # The only npm dependency is the Anthropic SDK (AGENT_BACKEND=api).
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
-COPY --chown=node:node . .
+# Root-owned: the agent (user node) cannot modify prompts, skills or knowledge shared by every site.
+COPY . .
 RUN mkdir -p /data && chown node:node /data
 
 ENV NODE_ENV=production \
