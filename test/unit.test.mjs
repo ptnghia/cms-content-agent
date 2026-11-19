@@ -103,6 +103,7 @@ test('normalizeUsage: maps CLI field names', () => {
     { inputTokens: 10, outputTokens: 2, cachedTokens: 5, costUsd: 0.5 });
   assert.deepEqual(normalizeUsage({ prompt_tokens: 3, completion_tokens: 4 }), { inputTokens: 3, outputTokens: 4, cachedTokens: 0, costUsd: 0 });
   assert.deepEqual(normalizeUsage(undefined), { inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0 });
+  assert.equal(normalizeUsage({ input_tokens: 2, cache_creation_input_tokens: 1000 }).inputTokens, 1002);
 });
 
 test('summarize usage by backend', () => {

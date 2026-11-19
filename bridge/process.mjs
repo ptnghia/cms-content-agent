@@ -89,7 +89,8 @@ export function normalizeUsage(u = {}, costUsd) {
   };
   const cost = Number(costUsd ?? u?.total_cost_usd ?? u?.cost_usd ?? u?.costUsd);
   return {
-    inputTokens: num('input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokens'),
+    // Claude reports cache writes separately; they are billed input, so count them in.
+    inputTokens: num('input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokens') + num('cache_creation_input_tokens'),
     outputTokens: num('output_tokens', 'outputTokens', 'completion_tokens', 'completionTokens'),
     cachedTokens: num('cached_input_tokens', 'cache_read_input_tokens', 'cachedTokens', 'cached_tokens'),
     costUsd: Number.isFinite(cost) && cost > 0 ? cost : 0,
