@@ -7,6 +7,7 @@ import path from 'node:path';
 import { ROOT } from './config.mjs';
 import { skillsComposeBlock } from './skills.mjs';
 import { fromCms, canonicalName } from './fields.mjs';
+import { linkOf } from './content-sync.mjs';
 
 const LENGTHS = { ngan: 'khoảng 600–800 từ', vua: 'khoảng 1000–1300 từ', dai: 'khoảng 1500–2000 từ' };
 const SCOPES = {
@@ -73,7 +74,7 @@ async function loadItems(ws) {
       const main = plainText(body.replace(/## Dữ kiện chỉ đọc \(facts\)[\s\S]*$/, '')).replace(/^\(không có nội dung\)$/, '');
       const issues = (/^seo_issues:\n((?:  - .*\n?)+)/m.exec(fm) || [])[1] || '';
       items.push({
-        kind: fmVal(fm, 'kind') || { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), kw: fmVal(fm, 'focus_keyword'),
+        kind: fmVal(fm, 'kind') || { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), url: fmVal(fm, 'url'), kw: fmVal(fm, 'focus_keyword'),
         keywords: fmVal(fm, 'keywords'), score: fmVal(fm, 'seo_score'), status: fmVal(fm, 'status'), text: main,
         facts: facts ? facts[1].trim().slice(0, 600) : '', factsFull: facts ? facts[1].trim().slice(0, 1800) : '', issues: issues.split('\n').map((l) => l.replace(/^  - /, '').replace(/^"|"$/g, '')).filter(Boolean),
       });
@@ -94,7 +95,7 @@ function rank(items, query, skip) {
   }).filter((x) => x.sc > 0).sort((a, b) => b.sc - a.sc);
 }
 
-const line = (it) => `[${it.kind} #${it.id}] ${it.title} | slug: ${it.slug} | từ khoá: ${it.kw || '-'}`;
+const line = (it) => `[${it.kind} #${it.id}] ${it.title} | link: ${linkOf(it.url) || it.slug} | từ khoá: ${it.kw || '-'}`;
 const rel = (it, n) => `### ${line(it)}\nTóm tắt: ${it.text.slice(0, n)}${it.facts ? `\nDữ kiện chỉ đọc:\n${it.facts}` : ''}`;
 
 /** Khối dữ liệu đưa thẳng vào prompt: danh mục trang (chống trùng + liên kết nội bộ) + 3–5 trang liên quan nhất */
@@ -104,7 +105,7 @@ export async function buildContextBlock(ws, r) {
   const self = r.postId ? { kind: r.type, id: r.postId } : null;
   const top = rank(items, query, self).slice(0, 5).map((x) => x.it);
   const parts = [];
-  parts.push(`## Dữ liệu website (đã chọn sẵn — KHÔNG cần và KHÔNG được mở file)\n\n### Danh mục toàn bộ trang (dùng để chống trùng chủ đề và lấy slug liên kết nội bộ)\n` +
+  parts.push(`## Dữ liệu website (đã chọn sẵn — KHÔNG cần và KHÔNG được mở file)\n\n### Danh mục toàn bộ trang (dùng để chống trùng chủ đề và lấy link liên kết nội bộ)\n` +
     items.filter((it) => it.slug && it.status !== 'hidden').map((it) => `- ${line(it)}`).join('\n'));
   const me = self ? items.find((it) => it.kind === self.kind && it.id === self.id) : null;
   if (SALES.has(r.type) && me?.factsFull) parts.push(`### Dữ kiện chỉ đọc của CHÍNH ${r.type === 'product' ? 'sản phẩm' : 'danh mục'} này (nguồn sự thật cho con số / chính sách; không đổi, không bịa thêm)\n${me.factsFull}`);

@@ -141,6 +141,27 @@ final class Proposals {
 		}
 
 		self::collect_warnings( $action, $type, $target, $clean, $warn );
+		$new_html = array();
+		foreach ( Content::HTML as $f ) {
+			if ( isset( $clean[ $f ] ) ) {
+				$new_html[] = $clean[ $f ];
+			}
+		}
+		foreach ( $clean_patches as $list ) {
+			foreach ( $list as $p ) {
+				$new_html[] = $p['replace'];
+			}
+		}
+		$old_html = array();
+		if ( $target ) {
+			foreach ( Content::HTML as $f ) {
+				$old_html[] = (string) Content::get_field( $target, $f );
+			}
+		}
+		$broken = self::broken_links( implode( "\n", $new_html ), implode( "\n", $old_html ) );
+		if ( $broken ) {
+			$warn[] = sprintf( 'Internal links that do not match any page on this site: %s', implode( ', ', array_slice( $broken, 0, 6 ) ) );
+		}
 
 		$post_id = wp_insert_post(
 			wp_slash(
@@ -342,6 +363,68 @@ final class Proposals {
 				$warn[] = sprintf( 'Proposal #%d for the same %s is still waiting for review', $open[0], $type );
 			}
 		}
+	}
+
+	/**
+	 * Same-site links in $html (and not already in $existing) that resolve to no post, page, product or term.
+	 *
+	 * @return string[]
+	 */
+	public static function broken_links( string $html, string $existing = '' ): array {
+		$hrefs = static function ( string $h ): array {
+			preg_match_all( '/<a\\s[^>]*href=["\']([^"\']+)["\']/i', $h, $m );
+			return array_unique( array_map( 'trim', $m[1] ) );
+		};
+		$candidates = array_diff( $hrefs( $html ), $hrefs( $existing ) );
+		if ( ! $candidates ) {
+			return array();
+		}
+		$home      = wp_parse_url( home_url( '/' ) );
+		$home_host = strtolower( $home['host'] ?? '' );
+		$norm      = static fn( string $path ): string => '/' . trim( (string) $path, '/' );
+		$terms     = null;
+		$broken    = array();
+		foreach ( $candidates as $href ) {
+			if ( '' === $href || preg_match( '/^(#|mailto:|tel:|javascript:)/i', $href ) ) {
+				continue;
+			}
+			$u = wp_parse_url( $href );
+			if ( false === $u ) {
+				$broken[] = $href;
+				continue;
+			}
+			if ( isset( $u['host'] ) && strtolower( $u['host'] ) !== $home_host ) {
+				continue; // external link
+			}
+			if ( ! isset( $u['host'] ) && ( ! isset( $u['path'] ) || '/' !== substr( $u['path'], 0, 1 ) ) && ! isset( $u['query'] ) ) {
+				$broken[] = $href; // relative like "slug.html": resolves differently on every page
+				continue;
+			}
+			$abs = isset( $u['host'] ) ? $href : home_url( $href );
+			if ( $norm( $u['path'] ?? '/' ) === $norm( $home['path'] ?? '/' ) || url_to_postid( $abs ) ) {
+				continue;
+			}
+			if ( null === $terms ) {
+				$terms = array();
+				$all   = get_terms(
+					array(
+						'taxonomy'   => array_values( array_intersect( array( 'category', 'post_tag', 'product_cat', 'product_tag' ), get_taxonomies() ) ),
+						'hide_empty' => false,
+						'number'     => 2000,
+					)
+				);
+				foreach ( is_array( $all ) ? $all : array() as $t ) {
+					$link = get_term_link( $t );
+					if ( is_string( $link ) ) {
+						$terms[ $norm( (string) wp_parse_url( $link, PHP_URL_PATH ) ) ] = true;
+					}
+				}
+			}
+			if ( ! isset( $terms[ $norm( $u['path'] ?? '' ) ] ) ) {
+				$broken[] = $href;
+			}
+		}
+		return array_values( $broken );
 	}
 
 	// ------------------------------------------------------------------ read

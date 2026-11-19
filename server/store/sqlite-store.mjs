@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS usage (
   output_tokens   INTEGER NOT NULL DEFAULT 0,
   cached_tokens   INTEGER NOT NULL DEFAULT 0,
   cost_usd        REAL NOT NULL DEFAULT 0,
-  duration_ms     INTEGER NOT NULL DEFAULT 0
+  duration_ms     INTEGER NOT NULL DEFAULT 0,
+  model           TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS usage_site_at ON usage(site_id, at);
 `;
@@ -54,6 +55,10 @@ export function createSqliteStore({ dataDir, file }) {
   const db = new DatabaseSync(file || path.join(dataDir, 'store.db'));
   db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
+  // v0.4.1: per-request model; older databases lack the column.
+  if (!db.prepare('PRAGMA table_info(usage)').all().some((c) => c.name === 'model')) {
+    db.exec("ALTER TABLE usage ADD COLUMN model TEXT NOT NULL DEFAULT ''");
+  }
 
   const q = {
     insert: db.prepare(`INSERT INTO conversations (id, site_id, uid, title, created_at, updated_at, msg_count, data)
@@ -67,11 +72,11 @@ export function createSqliteStore({ dataDir, file }) {
                       WHERE site_id = ? AND uid = ? ORDER BY updated_at DESC`),
     del: db.prepare('DELETE FROM conversations WHERE id = ? AND site_id = ? AND uid = ?'),
     usage: db.prepare(`INSERT INTO usage (at, site_id, uid, kind, conversation_id, backend, status, turns,
-                         input_tokens, output_tokens, cached_tokens, cost_usd, duration_ms)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
-    usageSite: db.prepare(`SELECT backend, input_tokens AS inputTokens, output_tokens AS outputTokens,
+                         input_tokens, output_tokens, cached_tokens, cost_usd, duration_ms, model)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    usageSite: db.prepare(`SELECT backend, model, input_tokens AS inputTokens, output_tokens AS outputTokens,
                              cached_tokens AS cachedTokens, cost_usd AS costUsd FROM usage WHERE site_id = ? AND at >= ?`),
-    usageUid: db.prepare(`SELECT backend, input_tokens AS inputTokens, output_tokens AS outputTokens,
+    usageUid: db.prepare(`SELECT backend, model, input_tokens AS inputTokens, output_tokens AS outputTokens,
                             cached_tokens AS cachedTokens, cost_usd AS costUsd FROM usage WHERE site_id = ? AND at >= ? AND uid = ?`),
   };
 
@@ -111,7 +116,7 @@ export function createSqliteStore({ dataDir, file }) {
   async function recordUsage(entry) {
     const e = normalizeUsageEntry(entry);
     q.usage.run(e.at, e.siteId, e.uid, e.kind, e.conversationId, e.backend, e.status, e.turns,
-      e.inputTokens, e.outputTokens, e.cachedTokens, e.costUsd, e.durationMs);
+      e.inputTokens, e.outputTokens, e.cachedTokens, e.costUsd, e.durationMs, e.model);
   }
 
   async function usageSummary(siteId, { uid, since }) {

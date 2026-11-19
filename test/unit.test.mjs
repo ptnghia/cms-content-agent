@@ -152,3 +152,11 @@ test('parseSites: comments dropped, example file valid, bad entries rejected', (
   assert.throws(() => parseSites({ 'bad id!': { tokenSecret: 'x'.repeat(32) } }), /Invalid siteId/);
   assert.throws(() => parseSites({ a: { tokenSecret: 'x'.repeat(32), translationOf: 'nope' } }), /translationOf/);
 });
+
+test('linkOf: root-relative link from a public URL', async () => {
+  const { linkOf } = await import('../server/content-sync.mjs');
+  assert.equal(linkOf('https://shop.test/blog/my-post/'), '/blog/my-post/');
+  assert.equal(linkOf('http://127.0.0.1:9500/?page_id=3'), '/?page_id=3');
+  assert.equal(linkOf(''), '');
+  assert.equal(linkOf(undefined), '');
+});

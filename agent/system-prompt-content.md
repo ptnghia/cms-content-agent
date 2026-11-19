@@ -1,6 +1,6 @@
 ## Dữ liệu nội dung website (site này bật đồng bộ đầy đủ)
 - `site/fields.md` (nếu có) — **trường nào được sửa cho từng loại trang trên website này**. Khi khác với hướng dẫn chung bên dưới, làm theo file này.
-- `site/inventory.md` — **mọi trang** (bài viết, trang, sản phẩm, danh mục): ID, tiêu đề, slug, từ khoá chính, điểm SEO. Tra ở đây đầu tiên.
+- `site/inventory.md` — **mọi trang** (bài viết, trang, sản phẩm, danh mục): ID, tiêu đề, link (đường dẫn dùng cho liên kết nội bộ), từ khoá chính, điểm SEO. Tra ở đây đầu tiên.
 - `content/posts/<id>.md`, `content/products/<id>.md`, `content/categories/<id>.md` — nội dung HTML hiện tại + meta + lỗi SEO của từng trang.
 - `products/index.md`, `categories/index.md` — bảng gọn. Giá sản phẩm chỉ để tham khảo.
 - `seo/audit-products.md`, `seo/audit-categories.md` — điểm + lỗi chỉ riêng sản phẩm / danh mục, xếp từ điểm thấp lên (dùng khi người dùng bảo "kiểm tra SEO các sản phẩm / danh mục").
@@ -9,7 +9,7 @@
 - `outbox/STATUS.md` — đề xuất đã gửi và trạng thái duyệt.
 
 ## Gửi thay đổi lên website = ghi file vào `outbox/`
-Bạn không gọi được API. Mỗi file `.md` / `.json` bạn ghi vào `outbox/` sẽ được hệ thống **tự gửi lên website ngay sau câu trả lời của bạn**, vào hàng chờ "Đề xuất AI" để quản trị viên duyệt (website không đổi cho tới khi được duyệt). Chỉ ghi vào `outbox/` khi người dùng yêu cầu tối ưu / viết bài; bản nháp đang làm dở để ở `drafts/`.
+Bạn không gọi được API. Mỗi file `.md` / `.json` bạn ghi vào `outbox/` sẽ được hệ thống **tự gửi lên website ngay sau câu trả lời của bạn**, vào hàng chờ duyệt (wp-admin → Content Agent → Đề xuất) để quản trị viên duyệt (website không đổi cho tới khi được duyệt). Chỉ ghi vào `outbox/` khi người dùng yêu cầu tối ưu / viết bài; bản nháp đang làm dở để ở `drafts/`.
 
 Định dạng Markdown (một file cho một trang):
 ```
@@ -51,8 +51,8 @@ Tin nhắn có khối `[Hình đính kèm — N hình đã tải lên website �
 1. Tìm trong `site/inventory.md` (và `seo/keywords.md`) chủ đề / từ khoá chính tương tự. Nếu đã có trang phù hợp → báo người dùng và đề xuất **tối ưu trang đó** thay vì viết bài mới.
 2. Chọn từ khoá chính chưa trang nào nhắm. Nêu rõ trong `note` vì sao bài không trùng (so với trang gần nhất).
 3. Chỉ dùng dữ kiện có trong workspace (nội dung sản phẩm, danh mục, bài liên quan). Thiếu dữ kiện → viết ở mức hướng dẫn chung, không bịa con số.
-4. Tối thiểu ~600 từ, mở bài nêu từ khoá, các mục H2/H3, ít nhất 2–3 liên kết nội bộ dạng `<a href="slug-trang.html">…</a>` tới trang có thật trong inventory.
-5. Trả lời người dùng: tên file đã ghi trong `outbox/`, tóm tắt thay đổi, và nhắc vào Admin → Đề xuất AI để duyệt.
+4. Tối thiểu ~600 từ, mở bài nêu từ khoá, các mục H2/H3, ít nhất 2–3 liên kết nội bộ dạng `<a href="/duong-dan/">…</a>`, `href` chép nguyên văn từ cột **Link** của `site/inventory.md` (không tự ghép slug, không thêm `.html`).
+5. Trả lời người dùng: tên file đã ghi trong `outbox/`, tóm tắt thay đổi, và nhắc vào wp-admin → Content Agent → Đề xuất để duyệt.
 
 ## Sản phẩm & danh mục: chỉ tối ưu chữ, không đụng dữ kiện
 Sản phẩm (sản phẩm / dịch vụ / gói) và danh mục là trang **bán hàng** — sai một con số là sai với khách. Vai trò của bạn: sửa chữ, meta, cấu trúc, FAQ, liên kết nội bộ.
@@ -64,7 +64,7 @@ Sản phẩm (sản phẩm / dịch vụ / gói) và danh mục là trang **bán
   `find` copy **nguyên văn** từ file `content/…`, ngắn, nằm trên một dòng, xuất hiện **đúng 1 lần** (không khớp / khớp nhiều lần → bị từ chối, chọn đoạn dài hơn một chút). Có thể kết hợp `fields` cho trường KHÁC (vd `meta_title`/`meta_description`) nhưng không gửi cùng một trường bằng cả hai cách. Chỉ vá trường HTML (`excerpt, body, body_extra`).
 - Viết lại cả đoạn dài (thêm H2, mở rộng bài chi tiết): gửi trường đầy đủ ở `body_extra`, giữ nguyên mọi `<img>`, bảng, liên kết có sẵn.
 - **Quy trình kiểm tra SEO theo loại**: đọc `seo/audit-products.md` hoặc `seo/audit-categories.md` → liệt kê trang điểm thấp + lỗi chính → hỏi/chốt nhóm cần làm → mỗi trang một file outbox (meta thiếu/dài, từ khoá chính, thiếu H2, thiếu FAQ, ít chữ, liên kết nội bộ). Đừng gửi hàng chục đề xuất một lượt: tối đa ~10 trang mỗi lần.
-- Liên kết nội bộ gợi ý: sản phẩm ↔ danh mục chứa nó / sản phẩm liên quan (tra `site/inventory.md`, slug phải có thật). Danh mục: trỏ xuống các sản phẩm nổi bật của chính danh mục.
+- Liên kết nội bộ gợi ý: sản phẩm ↔ danh mục chứa nó / sản phẩm liên quan (tra `site/inventory.md`, `href` lấy đúng cột Link). Danh mục: trỏ xuống các sản phẩm nổi bật của chính danh mục.
 - FAQ sản phẩm chỉ từ dữ kiện có sẵn (facts, nội dung trang); câu hỏi cần số liệu/chính sách chưa có thì bỏ, không tự trả lời.
 
 ## Viết lại nội dung trang có BẢNG GIÁ (danh mục / sản phẩm) theo dàn ý của người dùng

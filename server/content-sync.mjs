@@ -42,6 +42,9 @@ async function getAll(site, endpoint, withContent) {
   return out;
 }
 
+/** Root-relative link for internal linking: path of the public URL ("/my-post/"), or "" when unknown. */
+export const linkOf = (url) => { try { const u = new URL(url); return u.pathname + u.search; } catch { return ''; } };
+const TERM_KIND = { post: 'chuyên mục bài viết', product: 'danh mục sản phẩm' };
 const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
 const yaml = (v) => (v === null || v === undefined || v === '' ? '' : JSON.stringify(v));
 
@@ -114,7 +117,7 @@ export async function syncExtended(site, ws, postsWithContent) {
     const items = await getAll(site, '/categories', hasFeature(site, 'content'));
     all.push(...items);
     await atomicWrite(path.join(ws, 'categories', 'index.md'),
-      indexTable('Danh mục', items, [['Loại', (c) => c.module ?? c.type ?? ''], ['Cha', (c) => c.parent_id ?? '']]));
+      indexTable('Danh mục', items, [['Loại', (c) => TERM_KIND[c.module ?? c.type] ?? c.module ?? c.type ?? ''], ['Cha', (c) => c.parent_id ?? '']]));
     if (hasFeature(site, 'content')) {
       await writeCollection(ws, 'categories', items, (c) => [['Mô tả ngắn (excerpt)', c.excerpt_html], ['Nội dung (body)', c.content_html],
         ['Hỏi đáp (faq)', faqText(c.faq)]]);
@@ -123,10 +126,10 @@ export async function syncExtended(site, ws, postsWithContent) {
   }
 
   // Kho nội dung: một bảng cho mọi loại — tra trùng chủ đề / từ khoá trước khi viết bài mới
-  const inv = all.map((p) => [p.kind, p.id, p.title, p.slug, p.focus_keyword, p.seo_score, p.status].map(cell).join(' | '));
+  const inv = all.map((p) => [p.kind === 'category' && TERM_KIND[p.module ?? p.type] ? TERM_KIND[p.module ?? p.type] : p.kind, p.id, p.title, linkOf(p.url) || p.slug, p.focus_keyword, p.seo_score, p.status].map(cell).join(' | '));
   await atomicWrite(path.join(ws, 'site', 'inventory.md'),
-    `# Kho nội dung website (${all.length} trang)\n\nTrước khi đề xuất BÀI MỚI: tìm trong bảng này chủ đề / từ khoá chính tương tự. Đã có trang → đề xuất TỐI ƯU trang đó thay vì viết bài trùng.\n\n` +
-    `| Loại | ID | Tiêu đề | Slug | Từ khoá chính | Điểm SEO | Trạng thái |\n|---|---|---|---|---|---|---|\n${inv.map((r) => `| ${r} |`).join('\n')}\n`);
+    `# Kho nội dung website (${all.length} trang)\n\nTrước khi đề xuất BÀI MỚI: tìm trong bảng này chủ đề / từ khoá chính tương tự. Đã có trang → đề xuất TỐI ƯU trang đó thay vì viết bài trùng.\n\nCột **Link** là đường dẫn dùng cho liên kết nội bộ: chép nguyên văn vào \`href\` (vd. \`<a href="/ten-bai/">\`). Không tự ghép slug, không thêm \`.html\`.\n\n` +
+    `| Loại | ID | Tiêu đề | Link | Từ khoá chính | Điểm SEO | Trạng thái |\n|---|---|---|---|---|---|---|\n${inv.map((r) => `| ${r} |`).join('\n')}\n`);
 
   if (hasFeature(site, 'keywords')) {
     const d = await apiGet(site, '/keywords');

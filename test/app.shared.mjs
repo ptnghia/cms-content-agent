@@ -197,6 +197,7 @@ export function runAppTests(driver) {
     assert.ok(u.mine.inputTokens >= 4 * 300);
     assert.ok(u.mine.costUsd > 0);
     assert.ok(u.site.byBackend.claude);
+    assert.ok(u.site.byModel['claude-test-model'], JSON.stringify(u.site.byModel));
     const other = await (await api('/api/usage', { uid: 'nobody' })).json();
     assert.equal(other.mine.requests, 0);
     assert.equal(other.site.requests, u.site.requests);

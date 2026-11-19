@@ -24,11 +24,11 @@ export function upgradeConversation(conv) {
 
 const zero = () => ({ requests: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0 });
 
-/** Fold usage entries into {totals..., byBackend}. */
+/** Fold usage entries into {totals..., byBackend, byModel}. */
 export function summarize(entries) {
-  const out = { ...zero(), byBackend: {} };
+  const out = { ...zero(), byBackend: {}, byModel: {} };
   for (const e of entries) {
-    for (const t of [out, (out.byBackend[e.backend || 'unknown'] ??= zero())]) {
+    for (const t of [out, (out.byBackend[e.backend || 'unknown'] ??= zero()), (out.byModel[e.model || 'default'] ??= zero())]) {
       t.requests += 1;
       t.inputTokens += Number(e.inputTokens) || 0;
       t.outputTokens += Number(e.outputTokens) || 0;
@@ -39,6 +39,7 @@ export function summarize(entries) {
   const round = (t) => { t.costUsd = Math.round(t.costUsd * 1e6) / 1e6; };
   round(out);
   Object.values(out.byBackend).forEach(round);
+  Object.values(out.byModel).forEach(round);
   return out;
 }
 
@@ -51,6 +52,7 @@ export function normalizeUsageEntry(e) {
     kind: e.kind === 'compose' ? 'compose' : 'chat',
     conversationId: e.conversationId || null,
     backend: e.backend || 'unknown',
+    model: String(e.model || '').slice(0, 100),
     status: e.status || 'UNKNOWN',
     turns: n(e.turns),
     inputTokens: n(e.inputTokens),
