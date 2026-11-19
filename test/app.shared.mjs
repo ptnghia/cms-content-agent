@@ -25,14 +25,14 @@ export function runAppTests(driver) {
           { id: 2, title: 'Post two', status: 'draft', word_count: 900, meta_title: 't', meta_description: '', categories: ['B'] },
         ], next_page: null });
       }
-      if (req.method === 'GET' && url.pathname === '/api/agent/proposals') return json(200, { items: proposals.map((p, i) => ({ id: i + 1, ...p, status: 'cho_duyet' })) });
+      if (req.method === 'GET' && url.pathname === '/api/agent/proposals') return json(200, { items: proposals.map((p, i) => ({ id: i + 1, ...p, status: 'pending' })) });
       if (req.method === 'POST' && url.pathname === '/api/agent/proposals') {
         let body = '';
         req.on('data', (c) => { body += c; });
         req.on('end', () => {
           const p = JSON.parse(body);
           proposals.push(p);
-          json(201, { data: { id: proposals.length, status: 'cho_duyet', warnings: [], review_url: `https://admin.test/review/${proposals.length}` } });
+          json(201, { data: { id: proposals.length, status: 'pending', warnings: [], review_url: `https://admin.test/review/${proposals.length}` } });
         });
         return;
       }
@@ -43,7 +43,8 @@ export function runAppTests(driver) {
 
     const sitesFile = path.join(dataDir, 'sites.json');
     writeFileSync(sitesFile, JSON.stringify({
-      main: { name: 'Test site', tokenSecret: secret, allowedOrigins: ['https://admin.test'], api: { base: apiBase, key: 'site-key', features: ['proposals'] } },
+      main: { name: 'Test site', tokenSecret: secret, allowedOrigins: ['https://admin.test'], fieldMap: { meta_title: 'seo_title' },
+        api: { base: apiBase, key: 'site-key', features: ['proposals'] } },
     }));
     Object.assign(process.env, { DATA_DIR: dataDir, SITES_FILE: sitesFile, STORE_DRIVER: driver, CHAT_PER_HOUR: '8', COMPOSE_PER_HOUR: '5', MAX_CONCURRENT: '4' });
     useFakeAgent({ FAKE_FORMAT: 'claude', FAKE_MODE: 'ok' });
@@ -151,14 +152,14 @@ export function runAppTests(driver) {
 
   test('outbox: a proposal written by the agent is sent to the website review queue', async () => {
     process.env.FAKE_MODE = 'write:outbox/fix-1.md';
-    process.env.FAKE_WRITE_CONTENT = '---\naction: update\ntype: post\nid: 1\nsummary: Add meta title\ntitle: "Post one — guide"\n---\n';
+    process.env.FAKE_WRITE_CONTENT = '---\naction: update\ntype: post\nid: 1\nsummary: Add meta title\nmeta_title: "Post one — guide"\n---\n';
     try {
       const { events } = await chat({ message: 'Tối ưu bài 1' });
       const p = events.find((e) => e.type === 'proposals');
       assert.ok(p, 'proposals event');
       assert.equal(p.items[0].ok, true);
       assert.equal(proposals.at(-1).id, 1);
-      assert.equal(proposals.at(-1).fields.title, 'Post one — guide');
+      assert.equal(proposals.at(-1).fields.seo_title, 'Post one — guide', 'renamed with site.fieldMap');
       assert.match(events.filter((e) => e.type === 'delta').map((e) => e.text).join(''), /review\/\d/);
       const sent = readdirSync(path.join(dataDir, 'sites', 'main', 'outbox', 'sent'));
       assert.ok(sent.some((f) => f.endsWith('fix-1.md')) && sent.some((f) => f.endsWith('fix-1.md.result.json')));
@@ -214,6 +215,20 @@ export function runAppTests(driver) {
     }
     const empty = await api('/api/compose', { method: 'POST', body: { mode: 'new' } });
     assert.equal(empty.status, 400);
+  });
+
+  test('compose: success returns fields under the site\'s own names', async () => {
+    process.env.FAKE_REPLY = '===META_TITLE===\nSEO title\n===NOTES===\n- ok\n===BODY===\n<h2>Mở bài</h2><p>…</p>';
+    try {
+      const res = await api('/api/compose', { method: 'POST', body: { mode: 'new', brief: 'Bài về SEO', keyword: 'seo' } });
+      const r = (await readSse(res)).at(-1);
+      assert.equal(r.type, 'result');
+      assert.equal(r.fields.seo_title, 'SEO title', 'meta_title mapped via fieldMap');
+      assert.equal(r.fields.body, '<h2>Mở bài</h2><p>…</p>');
+      assert.equal(r.notes, '- ok');
+    } finally {
+      delete process.env.FAKE_REPLY;
+    }
   });
 
   test('rate limit: chat per user per hour', async () => {

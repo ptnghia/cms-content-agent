@@ -38,6 +38,51 @@ Tối đa `per_page=100`. Trả **tất cả** trạng thái (kể cả draft) �
 Mỗi mục nên có thêm: `kind`, `focus_keyword`, `seo_score`, `seo_issues[]`, `admin_url`. Website **không áp dụng** đề xuất ngay — đưa vào hàng chờ duyệt;
 lọc cột được phép, làm sạch HTML, cảnh báo trùng tiêu đề / từ khoá / bài gần giống.
 
+Sản phẩm có thể kèm `facts` (đối tượng tuỳ ý: thông số, gói giá, khuyến mãi, chính sách…). Agent coi đây là dữ kiện
+**chỉ đọc**: viết theo, không bao giờ sửa. Giá trị dạng mảng được ghi thành mỗi phần tử một dòng.
+
+### Tên trường trong đề xuất (`fields`, `patches`)
+Agent luôn dùng **tên trường chung** dưới đây. Nếu CSDL website đặt tên khác, khai báo `fieldMap` cho site trong
+`config/sites.json` và backend sẽ đổi tên ngay trước khi gửi `POST /proposals`. API compose cũng dùng cùng bảng ánh xạ.
+
+| Trường chung | Ý nghĩa | Loại trang |
+|---|---|---|
+| `name` | tên trang / H1 | post |
+| `excerpt` | mô tả ngắn (HTML) | post, product, category |
+| `body` | nội dung chính (HTML); với sản phẩm là bảng giá / thông tin chính | post, product, category |
+| `body_extra` | bài viết chi tiết bên dưới trang sản phẩm (HTML) | product |
+| `faq` | `[{question, answer}]` | product, category |
+| `meta_title`, `meta_description`, `meta_keywords` | SEO (từ khoá chính đứng đầu, cách nhau bằng dấu phẩy) | tất cả |
+| `slug`, `category_id`, `featured_image` | chỉ khi `action: create` | post |
+
+```jsonc
+"fieldMap": { "name": "title", "excerpt": "summary_html", "body": "content", "meta_title": "seo_title" }   // chỉ ghi những trường khác tên
+```
+`patches` (`{"body_extra": [{"find": "…", "replace": "…"}]}`) chỉ áp dụng cho trường HTML. Website thay đúng một chỗ
+khớp và từ chối nếu không khớp hoặc khớp nhiều chỗ.
+
+### Trạng thái đề xuất (`GET /proposals` → `items[].status`)
+`pending` (chờ duyệt) · `applied` (đã áp dụng) · `rejected` (bị từ chối) · `reverted` (đã hoàn tác). Giá trị khác được
+hiển thị nguyên văn cho agent.
+
+## API compose (cho plugin soạn thảo của website)
+`POST /api/compose` (Bearer token như widget) → SSE `progress {chars}`, `step`, rồi `result {mode, scope, fields, notes}` hoặc `error`.
+```jsonc
+{
+  "mode": "new",                 // new | optimize
+  "type": "post",                // post | product | category
+  "target": "body",              // trường đích cho product/category: excerpt | body | body_extra
+  "brief": "…", "keyword": "…", "length": "vua",   // ngan | vua | dai
+  "scope": "all",                // optimize: all | seo | content
+  "itemId": 12,                  // id trang đang sửa (nếu đã lưu)
+  "cur": { "name": "…", "excerpt": "…", "body": "<p>…</p>", "meta_title": "…", "meta_description": "…", "meta_keywords": "…" },
+  "others": { "body_extra": "…" },               // nội dung các trường khác của trang, để đối chiếu
+  "images": { "featured": {"name","file","url"}, "inline": [{"name","url","alt"}] }
+}
+```
+`cur`, `others` và `target` nhận cả tên chung lẫn tên riêng của site (theo `fieldMap`). `result.fields` trả về theo tên
+riêng của site. Chỉ nhận ảnh có URL thuộc `mediaOrigins` của site (mặc định là `allowedOrigins`).
+
 ## Dự kiến (giai đoạn sau)
 - `GET  {base}/posts/{id}` — nội dung đầy đủ (HTML/Markdown) để agent rà soát chi tiết.
 - `POST {base}/drafts` — đẩy bản nháp do agent viết lên CMS **ở trạng thái draft**, không bao giờ publish.

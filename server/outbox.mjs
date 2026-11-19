@@ -1,27 +1,30 @@
-// OUTBOX: agent (không gọi mạng được) ghi đề xuất vào workspace/outbox/, backend gửi lên website sau mỗi lượt chat.
-// Chỉ chạy cho site có "proposals" trong api.features. Website KHÔNG áp dụng ngay: đề xuất vào hàng chờ duyệt của admin.
+// OUTBOX: the agent (no network) writes proposals into workspace/outbox/; after each chat turn the backend
+// posts them to the website. Only for sites with "proposals" in api.features. The website does NOT apply
+// them: they land in the admin review queue.
 //
-// Định dạng 1 — Markdown  outbox/<tên>.md
+// Format 1 — Markdown  outbox/<name>.md
 //   ---
-//   action: update            (update | create — create chỉ cho type post)
+//   action: update            (update | create — create only for type post)
 //   type: post                (post | product | category)
-//   id: 291                   (bắt buộc khi update)
-//   summary: Rút gọn Title/Description, thêm mục H2
-//   note: Lý do / căn cứ (đọc từ seo/audit.md …)
-//   body_field: noi_dung      (trường nhận phần thân bên dưới; mặc định noi_dung — sản phẩm: noi_dung_1 là bài chi tiết)
-//   title: …                  (SEO title)   des: …   keyword: …   ten: …   mo_ta: …   alias: … (chỉ create)   id_loai: … (chỉ create)
+//   id: 291                   (required for update)
+//   summary: Shorten meta title/description, add an H2 section
+//   note: Reason / evidence (e.g. from seo/audit.md)
+//   body_field: body          (field that receives the body below; default body — products: body_extra is the long article)
+//   meta_title: …   meta_description: …   meta_keywords: …   name: …   excerpt: …
+//   slug: …   category_id: …   featured_image: …        (create only)
 //   ---
-//   <HTML hoặc Markdown của phần thân — bỏ trống nếu chỉ sửa meta>
+//   <HTML or Markdown body — leave empty when only meta changes>
 //
-// Định dạng 2 — JSON  outbox/<tên>.json   {"action","type","id","summary","note","fields":{…}}  (dùng cho FAQ: fields.thong_so_kt = [{question, answer}])
+// Format 2 — JSON  outbox/<name>.json   {"action","type","id","summary","note","fields":{…}}   (FAQ: fields.faq = [{question, answer}])
+// JSON also accepts "patches": {"body_extra":[{"find":"…","replace":"…"}]} — in-place edits of an HTML field (update only).
 //
-// JSON còn nhận "patches": {"noi_dung_1":[{"find":"…","replace":"…"}]} — vá từng đoạn (chỉ action update, trường HTML), không gửi kèm cả trường.
-//
-// Sau khi gửi: file chuyển vào outbox/sent/<thời gian>-<tên>, kèm <…>.result.json (kết quả / lỗi / cảnh báo của website).
+// Field names are canonical (server/fields.mjs) and renamed to the site's own columns with site.fieldMap
+// just before sending. After sending, the file moves to outbox/sent/<time>-<name> next to <…>.result.json.
 import { readdir, readFile, mkdir, rename, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { hasFeature, writeProposalStatus } from './content-sync.mjs';
 import { withUnlocked } from './workspace-guard.mjs';
+import { toCms } from './fields.mjs';
 
 const MAX_FILES = 20;
 const MAX_BYTES = 600_000;
@@ -37,7 +40,7 @@ function parseValue(v) {
 /** front-matter "key: value" (một dòng / giá trị) + phần thân */
 export function parseMarkdownProposal(text) {
   const m = /^﻿?---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
-  if (!m) throw new Error('Thiếu front-matter (--- … ---) ở đầu file');
+  if (!m) throw new Error('Missing front-matter (--- … ---) at the top of the file');
   const meta = {};
   for (const line of m[1].split(/\r?\n/)) {
     const kv = /^([A-Za-z_][\w]*)\s*:\s*(.*)$/.exec(line);
@@ -46,7 +49,7 @@ export function parseMarkdownProposal(text) {
   const fields = {};
   for (const [k, v] of Object.entries(meta)) if (!META_KEYS.has(k)) fields[k] = v;
   const body = m[2].trim();
-  if (body) fields[meta.body_field || 'noi_dung'] = /<(p|h[1-6]|ul|ol|table|div|figure|img|blockquote)\b/i.test(body) ? body : markdownToHtml(body);
+  if (body) fields[meta.body_field || 'body'] = /<(p|h[1-6]|ul|ol|table|div|figure|img|blockquote)\b/i.test(body) ? body : markdownToHtml(body);
   return { action: meta.action || 'update', type: meta.type, id: meta.id ? Number(meta.id) : undefined, title: meta.summary || '', note: meta.note || '', fields };
 }
 
@@ -137,10 +140,11 @@ async function sendOutbox(siteId, site, ws, source) {
     const file = path.join(dir, name);
     let r;
     try {
-      if ((await stat(file)).size > MAX_BYTES) throw new Error(`File lớn hơn ${MAX_BYTES / 1000} KB`);
+      if ((await stat(file)).size > MAX_BYTES) throw new Error(`File larger than ${MAX_BYTES / 1000} KB`);
       const text = await readFile(file, 'utf8');
       const p = name.toLowerCase().endsWith('.json') ? (() => { const j = JSON.parse(text); return { ...j, title: j.summary || j.title || '' }; })() : parseMarkdownProposal(text);
-      r = await postProposal(site, { action: p.action, type: p.type, id: p.id, title: p.title, note: p.note, fields: p.fields, patches: p.patches,
+      r = await postProposal(site, { action: p.action, type: p.type, id: p.id, title: p.title, note: p.note,
+        fields: toCms(site, p.fields), patches: p.patches ? toCms(site, p.patches) : undefined,
         source: `agent:${siteId}:${name}${source ? ':' + source : ''}`.slice(0, 100) });
     } catch (e) {
       r = { ok: false, error: e.message };

@@ -2,6 +2,7 @@
 // Stand-in for the agy / codex / claude CLIs in tests. Emits each CLI's stream-json format.
 //   FAKE_FORMAT   agy | codex | claude          (which CLI to imitate)
 //   FAKE_MODE     ok | fail | crash | hang | empty | write:<relpath>
+//   FAKE_REPLY    fixed answer text (default: "echo: <last prompt line>")
 //   FAKE_ARGS_FILE  if set, argv + stdin are appended there as one JSON line
 import { appendFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -28,7 +29,7 @@ function main() {
 
   const prompt = format === 'agy' ? argAfter('-p') : stdin;
   const lastLine = String(prompt || '').trim().split('\n').pop();
-  let reply = mode === 'empty' ? '' : `echo: ${lastLine}`;
+  let reply = mode === 'empty' ? '' : (process.env.FAKE_REPLY || `echo: ${lastLine}`);
 
   if (mode.startsWith('write:')) {
     const rel = mode.slice(6);

@@ -71,6 +71,9 @@ docker compose --profile dev up           # kèm website giả lập
 | `SYNC_ALERT_WEBHOOK` | – | gửi cảnh báo khi đồng bộ lỗi liên tiếp `SYNC_ALERT_AFTER` lần |
 | `WORKSPACE_LOCK` | `1` | dữ liệu đồng bộ chỉ-đọc với agent |
 
+Agent luôn dùng **tên trường chung** (`name`, `excerpt`, `body`, `body_extra`, `faq`, `meta_title`, `meta_description`,
+`meta_keywords`…). Nếu CMS đặt tên cột khác, khai báo `fieldMap` cho site trong `config/sites.json` (xem [docs/SITE_API.md](docs/SITE_API.md)).
+
 Xem đủ trong [.env.example](.env.example). Cấu hình site (`config/sites.json`), API và mô hình bảo mật: xem [README.md](README.md).
 
 ## Nhúng vào admin PHP

@@ -3,7 +3,8 @@
  *
  *   <script src="https://AGENT-HOST/widget.js"
  *           data-token-url="/admin/token.php"   (endpoint PHP trả {"token": "..."} ; hoặc data-token="...")
- *           data-upload-url="/admin/upload.php" (tuỳ chọn: bật nút 📎 đính kèm hình; endpoint nhận images[] và trả {"files":[{file,name,w,h}]})
+ *           data-upload-url="/admin/upload.php" (tuỳ chọn: bật nút 📎 đính kèm hình; endpoint nhận images[] và trả {"files":[{file,name,w,h,url?}]})
+ *           data-media-url="/uploads/"          (tuỳ chọn: thư mục chứa hình đã tải lên, dùng khi endpoint upload không trả url)
  *           data-mode="floating"                    (floating | inline)
  *           data-target="#agent-chat"                 (chỉ khi inline)
  *           data-title="Trợ lý nội dung"></script>
@@ -198,20 +199,22 @@
     var ATT_MARK = '[Hình đính kèm';
     var pending = [];                                   // File đang chờ gửi
     var attachBox = $('.attach'), fileIn = $('.file'), clipBtn = $('.clip');
-    function imgUrl(name) {                              // ảnh nằm ở <thư mục gốc site>/img_data/images/, suy ra từ địa chỉ upload
-      try { return new URL('../img_data/images/' + encodeURIComponent(name), new URL(opts.uploadUrl, location.href)).href; } catch (e) { return ''; }
+    function imgUrl(name) {                              // url của hình đã tải lên: data-media-url + tên file
+      if (!opts.mediaUrl) return '';
+      try { return new URL(encodeURIComponent(name), new URL(opts.mediaUrl, location.href)).href; } catch (e) { return ''; }
     }
     function renderUser(el, text) {
       var i = text.indexOf(ATT_MARK), body = i >= 0 ? text.slice(0, i).trim() : text;
       el.textContent = body;
       if (i < 0 || !opts.uploadUrl) return;
-      var names = [], re = /^\s*\d+\.\s+([A-Za-z0-9._-]+\.(?:webp|jpe?g|png|gif))/gim, m;   // chỉ tên file ở đầu mỗi dòng danh sách (không lấy "tên gốc")
-      while ((m = re.exec(text.slice(i)))) names.push(m[1]);
-      if (!names.length) return;
+      // mỗi dòng: "1. <tên-file> (tên gốc: …, w×h) — <url>"; url có thể không có
+      var urls = [], re = /^\s*\d+\.\s+([A-Za-z0-9._-]+\.(?:webp|jpe?g|png|gif|avif))\b[^\n]*?(?:— (https?:\/\/\S+|\/\S+))?\s*$/gim, m;
+      while ((m = re.exec(text.slice(i)))) { var u = m[2] || imgUrl(m[1]); if (/^(https?:\/\/|\/)/.test(u)) urls.push(u); }
+      if (!urls.length) return;
       var box = document.createElement('div'); box.className = 'pics';
-      names.forEach(function (n) {
+      urls.forEach(function (u) {
         var a = document.createElement('a'), im = document.createElement('img');
-        a.href = imgUrl(n); a.target = '_blank'; a.rel = 'noopener'; im.src = a.href; im.alt = ''; im.loading = 'lazy'; a.appendChild(im); box.appendChild(a);
+        a.href = u; a.target = '_blank'; a.rel = 'noopener'; im.src = a.href; im.alt = ''; im.loading = 'lazy'; a.appendChild(im); box.appendChild(a);
       });
       el.appendChild(box);
     }
@@ -246,8 +249,11 @@
       return j.files;
     }
     function attachBlock(files) {
-      return '\n\n' + ATT_MARK + ' — ' + files.length + ' hình đã tải lên website, nằm trong img_data/images/ (dùng tên file này cho hinh_anh hoặc <img src="img_data/images/…">)]\n' +
-        files.map(function (f, i) { return (i + 1) + '. ' + f.file + ' (tên gốc: ' + f.name + ', ' + f.w + '×' + f.h + ')'; }).join('\n');
+      return '\n\n' + ATT_MARK + ' — ' + files.length + ' hình đã tải lên website (dùng tên file cho featured_image, chèn vào bài bằng <img src="đường dẫn">)]\n' +
+        files.map(function (f, i) {
+          var u = f.url || imgUrl(f.file);
+          return (i + 1) + '. ' + f.file + ' (tên gốc: ' + f.name + ', ' + f.w + '×' + f.h + ')' + (u ? ' — ' + u : '');
+        }).join('\n');
     }
 
     // --- UI ---
@@ -457,7 +463,7 @@
   function fromScript(el) {
     var d = el.dataset;
     var origin = d.api || new URL(el.src, location.href).origin;
-    return { api: origin, token: d.token, tokenUrl: d.tokenUrl, uploadUrl: d.uploadUrl, mode: d.mode, target: d.target, title: d.title };
+    return { api: origin, token: d.token, tokenUrl: d.tokenUrl, uploadUrl: d.uploadUrl, mediaUrl: d.mediaUrl, mode: d.mode, target: d.target, title: d.title };
   }
 
   window.ContentAgent = window.AgyChat = { mount: mount };   // AgyChat kept for older embeds

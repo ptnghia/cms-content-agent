@@ -23,7 +23,7 @@ description: Dịch và bản địa hoá nội dung website sang ngôn ngữ kh
 ## Đầu ra
 **A. Site là bản dịch của site khác** (system prompt có mục "Bản gốc để dịch"; vd. trợ lý tiếng Anh của một website tiếng Việt): bản gốc đọc ở workspace bản gốc, bản dịch là dòng cùng ID của ngôn ngữ đích trên cùng website.
 - Đọc `<workspace bản gốc>/content/<loại>/<id>.md` và bản hiện có `content/<loại>/<id>.md` (có thể là bản dịch máy sơ bộ — viết lại cho tự nhiên, đừng chắp vá).
-- Ghi MỘT file `outbox/` cho mỗi trang: `action: update`, cùng `type` và `id`, các trường `title`, `des`, `keyword` và phần thân đã dịch (theo định dạng và trường được phép ở hướng dẫn outbox; sản phẩm: `mo_ta`, `noi_dung`, `noi_dung_1`, `thong_so_kt` nếu có). Không tạo trang mới (`create`), không sửa alias.
+- Ghi MỘT file `outbox/` cho mỗi trang: `action: update`, cùng `type` và `id`, các trường `meta_title`, `meta_description`, `meta_keywords` và phần thân đã dịch (theo định dạng và trường được phép ở hướng dẫn outbox; sản phẩm: `excerpt`, `body`, `body_extra`, `faq` nếu có). Không tạo trang mới (`create`), không sửa slug.
 - Trang chưa có bản của ngôn ngữ đích thì báo quản trị viên tạo ở tab ngôn ngữ trong admin, rồi mới dịch.
 - hreflang / canonical do website tự sinh theo cặp ID — không cần làm; chỉ báo nếu thấy bất thường.
 

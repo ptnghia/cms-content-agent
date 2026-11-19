@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+- **Canonical, CMS-neutral field names** everywhere the agent writes or reads content: `name`, `excerpt`, `body`,
+  `body_extra`, `faq`, `meta_title`, `meta_description`, `meta_keywords`, `slug`, `category_id`, `featured_image`
+  (previously the column names of the first deployment's CMS). The new per-site `fieldMap` maps them to your CMS
+  columns in proposals and compose requests/results.
+- Compose answer sections are `===NAME/EXCERPT/META_TITLE/META_DESCRIPTION/KEYWORDS/NOTES/BODY===`.
+- Proposal statuses are `pending | applied | rejected | reverted`.
+- Product `facts` are rendered generically (any keys) instead of a fixed price/promotion schema.
+- Uploaded images are no longer tied to one hard-coded path. The widget uses `url` from the upload response or the
+  new `data-media-url`, and compose accepts images from `mediaOrigins`.
+- Prompts no longer use travel-specific wording.
+
 ## 0.3.0 — first public release
 
 Renamed from the private *Agent-Agy* project.
