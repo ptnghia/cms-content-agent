@@ -7,3 +7,5 @@ data
 test
 docs
 config/sites.json
+wordpress
+dist

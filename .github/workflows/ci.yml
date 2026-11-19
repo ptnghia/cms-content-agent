@@ -22,9 +22,31 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm run check
-      - run: npm test   # includes the PHP <-> Node token test (php is preinstalled on ubuntu-latest)
-      - name: Lint PHP helpers
-        run: for f in php/*.php; do php -l "$f"; done
+      - run: npm test   # includes the plugin <-> backend token test (php is preinstalled on ubuntu-latest)
+
+  plugin:
+    name: WordPress plugin (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: none
+      - name: php -l
+        run: npm run lint:php
+      - name: Build plugin zip
+        if: matrix.php == '8.3'
+        run: npm run build:wp
+      - uses: actions/upload-artifact@v4
+        if: matrix.php == '8.3'
+        with:
+          name: content-agent-plugin
+          path: dist/content-agent.zip
 
   docker:
     runs-on: ubuntu-latest

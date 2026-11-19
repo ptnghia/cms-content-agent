@@ -16,10 +16,12 @@ const SCOPES = {
 };
 const TYPES = {
   post: 'bài viết tin tức',
+  page: 'TRANG tĩnh (giới thiệu, dịch vụ, liên hệ…)',
   product: 'SẢN PHẨM (trang bán một sản phẩm / dịch vụ)',
   category: 'DANH MỤC (trang nhóm sản phẩm / chủ đề)',
 };
 const TARGETS = { excerpt: 'Mô tả ngắn (excerpt)', body: 'Nội dung (body)', body_extra: 'Bài viết chi tiết (body_extra)' };
+const SALES = new Set(['product', 'category']);   // sales pages: facts are read-only, no name/excerpt rewrite
 const clip = (s, n) => String(s ?? '').slice(0, n);
 
 export function normalizeCompose(b, site) {
@@ -71,7 +73,7 @@ async function loadItems(ws) {
       const main = plainText(body.replace(/## Dữ kiện chỉ đọc \(facts\)[\s\S]*$/, '')).replace(/^\(không có nội dung\)$/, '');
       const issues = (/^seo_issues:\n((?:  - .*\n?)+)/m.exec(fm) || [])[1] || '';
       items.push({
-        kind: { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), kw: fmVal(fm, 'focus_keyword'),
+        kind: fmVal(fm, 'kind') || { posts: 'post', products: 'product', categories: 'category' }[kind], id: Number(fmVal(fm, 'id')), title: fmVal(fm, 'title'), slug: fmVal(fm, 'slug'), kw: fmVal(fm, 'focus_keyword'),
         keywords: fmVal(fm, 'keywords'), score: fmVal(fm, 'seo_score'), status: fmVal(fm, 'status'), text: main,
         facts: facts ? facts[1].trim().slice(0, 600) : '', factsFull: facts ? facts[1].trim().slice(0, 1800) : '', issues: issues.split('\n').map((l) => l.replace(/^  - /, '').replace(/^"|"$/g, '')).filter(Boolean),
       });
@@ -105,7 +107,7 @@ export async function buildContextBlock(ws, r) {
   parts.push(`## Dữ liệu website (đã chọn sẵn — KHÔNG cần và KHÔNG được mở file)\n\n### Danh mục toàn bộ trang (dùng để chống trùng chủ đề và lấy slug liên kết nội bộ)\n` +
     items.filter((it) => it.slug && it.status !== 'hidden').map((it) => `- ${line(it)}`).join('\n'));
   const me = self ? items.find((it) => it.kind === self.kind && it.id === self.id) : null;
-  if (r.type !== 'post' && me?.factsFull) parts.push(`### Dữ kiện chỉ đọc của CHÍNH ${r.type === 'product' ? 'sản phẩm' : 'danh mục'} này (nguồn sự thật cho con số / chính sách; không đổi, không bịa thêm)\n${me.factsFull}`);
+  if (SALES.has(r.type) && me?.factsFull) parts.push(`### Dữ kiện chỉ đọc của CHÍNH ${r.type === 'product' ? 'sản phẩm' : 'danh mục'} này (nguồn sự thật cho con số / chính sách; không đổi, không bịa thêm)\n${me.factsFull}`);
   if (r.mode === 'new') {
     parts.push(`### Các trang liên quan nhất tới yêu cầu (nguồn dữ kiện; có thể trùng chủ đề)\n` + (top.length ? top.map((it) => rel(it, 900)).join('\n\n') : '(không có trang nào liên quan rõ ràng)'));
   } else {
@@ -142,11 +144,11 @@ export async function buildComposePrompt(site, workspace, r) {
     parts.push(`## Yêu cầu: VIẾT BÀI MỚI\nĐộ dài: ${LENGTHS[r.length]}.\nMô tả của quản trị viên:\n${r.brief || '(không mô tả — suy ra từ từ khoá)'}\n${r.keyword ? `Từ khoá chính đề xuất: ${r.keyword}\n` : ''}`);
     if (r.cur.body.trim()) parts.push(`Ô nội dung hiện có nháp (tham khảo, có thể dùng lại ý):\n${clip(r.cur.body, 8000)}`);
   } else {
-    parts.push(`## Yêu cầu: TỐI ƯU BÀI CÓ SẴN\nPhạm vi: ${SCOPES[r.scope]}${r.type !== 'post' ? ' (trang bán hàng: không trả NAME, EXCERPT)' : ''}\nGợi ý của quản trị viên:\n${r.brief || '(không có — tự đánh giá theo checklist SEO)'}\n${r.keyword ? `Từ khoá chính: ${r.keyword}\n` : ''}${r.postId ? `ID bài viết trên website: ${r.postId} (điểm và lỗi SEO của bài nằm ở mục dữ liệu bên trên)\n` : 'Bài chưa lưu — chưa có trong kho đồng bộ.\n'}`);
+    parts.push(`## Yêu cầu: TỐI ƯU BÀI CÓ SẴN\nPhạm vi: ${SCOPES[r.scope]}${SALES.has(r.type) ? ' (trang bán hàng: không trả NAME, EXCERPT)' : ''}\nGợi ý của quản trị viên:\n${r.brief || '(không có — tự đánh giá theo checklist SEO)'}\n${r.keyword ? `Từ khoá chính: ${r.keyword}\n` : ''}${r.postId ? `ID bài viết trên website: ${r.postId} (điểm và lỗi SEO của bài nằm ở mục dữ liệu bên trên)\n` : 'Bài chưa lưu — chưa có trong kho đồng bộ.\n'}`);
     const c = r.cur;
     parts.push(`### Bài hiện tại (nguồn sự thật — giữ nguyên ảnh, bảng, liên kết, mọi con số)\nNAME: ${c.name}\nEXCERPT: ${c.excerpt}\nMETA_TITLE: ${c.meta_title}\nMETA_DESCRIPTION: ${c.meta_description}\nKEYWORDS: ${c.meta_keywords}\nBODY (HTML):\n${c.body}`);
   }
-  if (r.type !== 'post') {
+  if (SALES.has(r.type)) {
     const prod = r.type === 'product';
     const others = Object.entries(r.others).filter(([k, v]) => k !== r.target && plainText(v)).map(([k, v]) => `- ${TARGETS[k]}: ${clip(plainText(v), 1800)}`).join('\n');
     parts.push(`## Loại trang: ${TYPES[r.type]} — trường đích: ${TARGETS[r.target]}\n` +
@@ -159,7 +161,7 @@ export async function buildComposePrompt(site, workspace, r) {
   }
   const imBlock = imagesBlock(safeImages(site, r.images), { mode: r.mode });
   if (imBlock) parts.push(imBlock);
-  const skillsBlock = await skillsComposeBlock(site, [r.mode, ...(r.type !== 'post' ? ['sales'] : [])]);
+  const skillsBlock = await skillsComposeBlock(site, [r.mode, ...(SALES.has(r.type) ? ['sales'] : [])]);
   if (skillsBlock) parts.push(skillsBlock);
   parts.push('Bắt đầu: mọi dữ liệu cần thiết đã có ở trên, KHÔNG mở file / chạy lệnh. Trả lời ngay ĐÚNG định dạng các mục ===SECTION=== ở trên, không thêm lời dẫn.');
   return parts.join('\n\n');
