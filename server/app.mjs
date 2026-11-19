@@ -14,6 +14,7 @@ import { processOutbox, outboxSummary } from './outbox.mjs';
 import { SKILLS_DIR } from './skills.mjs';
 import { normalizeCompose, buildComposePrompt, parseComposeResponse } from './compose.mjs';
 import { createRateLimiter } from './rate-limit.mjs';
+import { toCms } from './fields.mjs';
 
 const WEB = path.join(ROOT, 'web');
 const KNOWLEDGE_DIR = path.join(ROOT, 'knowledge');
@@ -263,9 +264,9 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
     const { siteId, uid, site, cors } = auth;
     let body;
     try { body = await readJson(req, 450_000); } catch { return sendJson(res, 400, { error: 'bad_json' }, cors); }
-    const r = normalizeCompose(body);
+    const r = normalizeCompose(body, site);
     if (r.mode === 'new' && !r.brief && !r.keyword) return sendJson(res, 400, { error: 'empty_brief', message: 'Hãy mô tả bài cần viết hoặc nhập từ khoá chính.' }, cors);
-    if (r.mode === 'optimize' && !r.cur.noi_dung.replace(/<[^>]*>/g, '').trim()) return sendJson(res, 400, { error: 'empty_content', message: 'Chưa có nội dung để tối ưu.' }, cors);
+    if (r.mode === 'optimize' && !r.cur.body.replace(/<[^>]*>/g, '').trim()) return sendJson(res, 400, { error: 'empty_content', message: 'Chưa có nội dung để tối ưu.' }, cors);
     if (activeCount >= config.maxConcurrent) return sendJson(res, 429, { error: 'server_busy', message: 'Hệ thống đang bận, thử lại sau ít phút.' }, cors);
     const rl = composeLimiter.take(`${siteId}:${uid}`);
     if (!rl.ok) return rateLimited(res, cors, rl);
@@ -296,11 +297,11 @@ export function createApp({ sites, runTurn = defaultRunTurn }) {
       let out = await turn(prompt);
       for (let i = 0; i < 2 && !out.response.trim() && out.status !== 'CANCELLED' && sid && !ac.signal.aborted; i++) {
         // The agent tried a blocked shell command and returned nothing -> ask for the formatted answer.
-        out = await turn('Lệnh shell bị từ chối. Hãy chỉ dùng công cụ đọc file (hoặc không đọc gì nếu đã đủ dữ kiện) rồi trả kết quả ĐÚNG định dạng các mục ===TÊN=== đã nêu.', sid);
+        out = await turn('Lệnh shell bị từ chối. Hãy chỉ dùng công cụ đọc file (hoặc không đọc gì nếu đã đủ dữ kiện) rồi trả kết quả ĐÚNG định dạng các mục ===SECTION=== đã nêu.', sid);
       }
       if (out.status === 'CANCELLED') return;
       const parsed = parseComposeResponse(out.response || '');
-      send({ type: 'result', mode: r.mode, scope: r.scope, ...parsed });
+      send({ type: 'result', mode: r.mode, scope: r.scope, fields: toCms(site, parsed.fields), notes: parsed.notes });
       ok = true;
     } catch (err) {
       send({ type: 'error', message: err.message });

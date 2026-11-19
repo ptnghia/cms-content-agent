@@ -5,6 +5,7 @@ import { parseMarkdownProposal, markdownToHtml, outboxSummary } from '../server/
 import { parseComposeResponse, normalizeCompose } from '../server/compose.mjs';
 import { createRateLimiter } from '../server/rate-limit.mjs';
 import { normalizeUsage } from '../bridge/process.mjs';
+import { toCms, fromCms, canonicalName } from '../server/fields.mjs';
 import { summarize, upgradeConversation } from '../server/store/common.mjs';
 
 const sites = { main: { tokenSecret: 'x'.repeat(32) } };
@@ -28,18 +29,18 @@ test('auth: rejects bad signature, expiry, long TTL, unknown site, missing uid',
 });
 
 test('outbox: markdown proposal with front-matter and markdown body', () => {
-  const p = parseMarkdownProposal('---\naction: update\ntype: post\nid: 12\nsummary: Shorter title\ntitle: "A: B"\n---\n# Heading\n\nSome **bold** text.\n\n- one\n- two\n');
+  const p = parseMarkdownProposal('---\naction: update\ntype: post\nid: 12\nsummary: Shorter title\nmeta_title: "A: B"\n---\n# Heading\n\nSome **bold** text.\n\n- one\n- two\n');
   assert.equal(p.action, 'update');
   assert.equal(p.type, 'post');
   assert.equal(p.id, 12);
   assert.equal(p.title, 'Shorter title');
-  assert.equal(p.fields.title, 'A: B');
-  assert.equal(p.fields.noi_dung, '<h2>Heading</h2>\n<p>Some <strong>bold</strong> text.</p>\n<ul><li>one</li><li>two</li></ul>');
+  assert.equal(p.fields.meta_title, 'A: B');
+  assert.equal(p.fields.body, '<h2>Heading</h2>\n<p>Some <strong>bold</strong> text.</p>\n<ul><li>one</li><li>two</li></ul>');
 });
 
 test('outbox: HTML body kept as-is, body_field honoured', () => {
-  const p = parseMarkdownProposal('---\ntype: product\nid: 3\nbody_field: noi_dung_1\n---\n<p>x</p>');
-  assert.deepEqual(p.fields, { noi_dung_1: '<p>x</p>' });
+  const p = parseMarkdownProposal('---\ntype: product\nid: 3\nbody_field: body_extra\n---\n<p>x</p>');
+  assert.deepEqual(p.fields, { body_extra: '<p>x</p>' });
 });
 
 test('outbox: missing front-matter throws', () => {
@@ -61,9 +62,9 @@ test('outboxSummary: ok and failed lines', () => {
 });
 
 test('compose: parse sections, strip code fence', () => {
-  const r = parseComposeResponse('===TITLE===\nT\n===GHI_CHU===\n- n\n===NOI_DUNG===\n```html\n<h2>H</h2>\n```');
-  assert.equal(r.fields.title, 'T');
-  assert.equal(r.fields.noi_dung, '<h2>H</h2>');
+  const r = parseComposeResponse('===META_TITLE===\nT\n===NOTES===\n- n\n===BODY===\n```html\n<h2>H</h2>\n```');
+  assert.equal(r.fields.meta_title, 'T');
+  assert.equal(r.fields.body, '<h2>H</h2>');
   assert.equal(r.notes, '- n');
   assert.throws(() => parseComposeResponse('plain text'), /===/);
 });
@@ -122,4 +123,21 @@ test('summarize usage by backend', () => {
 test('upgradeConversation: legacy agyConversationId', () => {
   assert.deepEqual(upgradeConversation({ agyConversationId: 'x' }), { agentSessionId: 'x' });
   assert.deepEqual(upgradeConversation({ agentSessionId: 'y' }), { agentSessionId: 'y' });
+});
+
+test('fieldMap: canonical <-> CMS names', () => {
+  const site = { fieldMap: { name: 'title', body: 'content', faq: 'qa_items' } };
+  assert.deepEqual(toCms(site, { name: 'A', body: 'B', meta_title: 'C' }), { title: 'A', content: 'B', meta_title: 'C' });
+  assert.deepEqual(fromCms(site, { title: 'A', content: 'B', excerpt: 'E' }), { name: 'A', body: 'B', excerpt: 'E' });
+  assert.equal(canonicalName(site, 'qa_items'), 'faq');
+  assert.equal(canonicalName(site, 'body_extra'), 'body_extra');
+  assert.deepEqual(toCms({}, { body: 1 }), { body: 1 }, 'no map = canonical names');
+});
+
+test('compose: request accepts the site\'s own field names', () => {
+  const site = { fieldMap: { body: 'content', excerpt: 'summary_html' } };
+  const r = normalizeCompose({ mode: 'optimize', target: 'summary_html', cur: { content: '<p>x</p>' }, others: { content: 'y' } }, site);
+  assert.equal(r.target, 'excerpt');
+  assert.equal(r.cur.body, '<p>x</p>');
+  assert.deepEqual(r.others, { body: 'y' });
 });

@@ -6,9 +6,12 @@
     "_translationOf": "(chỉ cho site là BẢN DỊCH của site khác: id site gốc, vd \"main\")",
     "tokenSecret": "ĐỔI-THÀNH-CHUỖI-NGẪU-NHIÊN-DÀI (openssl rand -hex 32)",
     "allowedOrigins": ["https://admin.example.com"],
+    "_mediaOrigins": "(tuỳ chọn: origin chứa ảnh đã tải lên, mặc định = allowedOrigins)",
+    "_fieldMap": "(tuỳ chọn: tên cột CMS khác tên trường chung, vd {\"body\": \"content\", \"meta_title\": \"seo_title\"} — xem docs/SITE_API.md)",
     "api": {
       "base": "https://example.com/api/agent",
-      "key": "API-KEY-CỦA-WEBSITE"
+      "key": "API-KEY-CỦA-WEBSITE",
+      "_features": "(tuỳ chọn: content, products, categories, keywords, seo, proposals)"
     }
   }
 }
