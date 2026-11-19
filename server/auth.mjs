@@ -40,3 +40,15 @@ export function verifyToken(token, sites) {
   if (!uid) return { ok: false, reason: 'uid' };
   return { ok: true, siteId: payload.site, uid, name: String(payload.name ?? '').slice(0, 80) };
 }
+
+/** Site id claimed by a token, before its signature is checked (the provider looks the site up by it). */
+export function tokenSiteId(token) {
+  if (typeof token !== 'string' || token.length > 2048) return null;
+  const [p] = token.split('.');
+  try {
+    const site = JSON.parse(Buffer.from(p || '', 'base64url').toString('utf8'))?.site;
+    return typeof site === 'string' && /^[a-z0-9_-]{1,40}$/i.test(site) ? site : null;
+  } catch {
+    return null;
+  }
+}

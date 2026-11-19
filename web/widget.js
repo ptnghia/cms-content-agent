@@ -393,10 +393,12 @@
           signal: controller.signal
         });
         if (!res.ok) {
-          var code = ''; try { code = (await res.json()).error; } catch (e) { /* ignore */ }
+          var code = '', serverMsg = '';
+          try { var j = await res.json(); code = j.error || ''; serverMsg = typeof j.message === 'string' ? j.message : ''; } catch (e) { /* ignore */ }
           var msgs = { conversation_busy: T.convBusy, server_busy: T.serverBusy, conversation_not_found: T.convGone };
           if (code === 'conversation_not_found') remember(null);
-          throw new Error(msgs[code] || T.error + ' ' + res.status + (code ? ' (' + code + ')' : ''));
+          // A hosting service may refuse a turn with its own message (no credit left, site locked…).
+          throw new Error(msgs[code] || serverMsg || T.error + ' ' + res.status + (code ? ' (' + code + ')' : ''));
         }
         tick.textContent = T.sent;
         status.set(T.waiting);

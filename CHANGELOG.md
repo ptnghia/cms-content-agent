@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## 0.6.0 — Extension points for hosted services
+
+Lets a hosting layer (e.g. a SaaS) run the backend as a dependency without forking it. Self-hosting is unchanged.
+Guide: [docs/EMBEDDING.md](docs/EMBEDDING.md).
+
+### Added
+- Package `exports`: `cms-content-agent` (createApp and helpers), `cms-content-agent/bridge`,
+  `cms-content-agent/store/sqlite`, `cms-content-agent/testing/store-contract`. Deep imports are no longer supported.
+- `createApp({ siteProvider })`: async site lookup (`get`, `allowsOrigin`, `list`); `createApp({ sites })` still works
+  through `staticSiteProvider`.
+- `createApp({ store })`: any store that passes the shared contract (`storeContract`); the default store is created
+  only when none is injected.
+- `beforeTurn` / `afterTurn` hooks around every AI turn (chat, compose, internal task): refuse with a code
+  (402 / 423 / 403), and get usage exactly once per turn with a unique `requestId`, also on errors and disconnects.
+- Optional `/internal/*` routes behind a token: sync one site, write `knowledge/<name>.md`, and JSON tasks
+  (`keyword-clusters`, `seo-plan`, or your own).
+- Plugin: **Connect** to a hosted service in one click (state + single-use code + server-to-server exchange, no secret
+  in a URL); brand name and service URL through constants / filters; branded zips with
+  `BRAND_NAME` / `BRAND_SERVICE_URL` / `BRAND_ZIP` (or `LIFETECH_BRAND=1`).
+
+- Plugin: **Disconnect** from the service (regenerates the site's own keys); a build without that service falls back
+  to the manual settings.
+- Widget: shows the `message` a host returns with a refused turn.
+
+### Changed
+- `server/sync.mjs` creates workspace folders directly instead of going through the store.
+- Turn hooks time out (`hookTimeoutMs`, default 10 s); `afterTurn` runs after the response and slot are released; a
+  client that leaves while `beforeTurn` runs never starts a turn.
+
 ## 0.5.0 — Any language, Claude API backend, security review
 
 Reviewed before release (plugin and backend); every fix below was verified in WordPress Playground or against the real

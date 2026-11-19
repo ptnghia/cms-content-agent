@@ -13,7 +13,7 @@ The project has two parts:
 It supports posts, pages, categories, **WooCommerce** products and product categories, and **Yoast SEO** or **Rank Math**.
 Without an SEO plugin, it uses its own SEO fields.
 
-[Tiếng Việt](README.vi.md) · [Deploy](docs/DEPLOY.md) · [Plugin ↔ backend API](docs/SITE_API.md) · [Roadmap](docs/PLAN.md) · [Contributing](CONTRIBUTING.md)
+[Tiếng Việt](README.vi.md) · [Deploy](docs/DEPLOY.md) · [Plugin ↔ backend API](docs/SITE_API.md) · [Embedding in a service](docs/EMBEDDING.md) · [Roadmap](docs/PLAN.md) · [Contributing](CONTRIBUTING.md)
 
 > **Any content language.** The agent writes in the site's `language` (set automatically from the WordPress locale) and
 > replies in the language the editor writes in. Prompts and skills are plain English Markdown in `agent/` and `skills/`.

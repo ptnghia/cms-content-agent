@@ -1,8 +1,15 @@
 {
   "name": "cms-content-agent",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "AI content & SEO agent for WordPress: a self-hosted backend running Claude Code / Codex / agy plus a WordPress plugin with chat in wp-admin, a review queue and a \"Write with AI\" block-editor sidebar.",
   "type": "module",
+  "exports": {
+    ".": "./server/index.mjs",
+    "./bridge": "./bridge/index.mjs",
+    "./store/sqlite": "./server/store/sqlite-store.mjs",
+    "./testing/store-contract": "./server/testing/store-contract.mjs",
+    "./package.json": "./package.json"
+  },
   "private": true,
   "license": "MIT",
   "repository": {
@@ -25,7 +32,7 @@
     "mock-site": "node dev/mock-site.mjs",
     "smoke": "node bridge/smoke.mjs",
     "test": "node --test --test-reporter=spec \"test/*.test.mjs\"",
-    "check": "node --check server/*.mjs server/store/*.mjs bridge/*.mjs bridge/adapters/*.mjs scripts/*.mjs dev/*.mjs web/widget.js wordpress/content-agent/assets/editor.js",
+    "check": "node --check server/*.mjs server/store/*.mjs server/testing/*.mjs bridge/*.mjs bridge/adapters/*.mjs scripts/*.mjs dev/*.mjs web/widget.js wordpress/content-agent/assets/editor.js",
     "migrate:sqlite": "node scripts/migrate-file-to-sqlite.mjs",
     "build:wp": "node scripts/build-wp-plugin.mjs",
     "lint:php": "for f in $(find wordpress -name '*.php'); do php -l \"$f\" > /dev/null || exit 1; done && echo php ok"
