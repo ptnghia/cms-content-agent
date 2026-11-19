@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+First run against a real agent (Claude Code) on a WordPress + WooCommerce + Yoast test site; see
+[docs/FIELD_TEST.md](docs/FIELD_TEST.md).
+
+### Fixed
+- **Internal links**: prompts and the internal-linking skill still told the agent to write `slug.html` links (a leftover
+  from the first CMS), which produce broken links on WordPress. The workspace now lists a root-relative **Link** for every
+  page (`site/inventory.md`, compose page list) and the agent is told to copy it verbatim.
+- Category tables say "chuyên mục bài viết" / "danh mục sản phẩm" instead of `post` / `product`, so the agent no longer
+  reports a post category and a product category with the same name as duplicates.
+- The agent pointed editors to a menu that does not exist ("Admin → Đề xuất AI"); it now says Content Agent → Đề xuất.
+
+### Added
+- Plugin: proposals warn about **same-site links that match no post, page, product or term** (relative `*.html`
+  links included). The warning shows in the review queue and in the agent's delivery report.
+- Usage log records the **model** of each request; `/api/usage` returns `byModel`. SQLite stores add the column on start.
+
 ## 0.4.0 — WordPress service
 
 The project is now a service for WordPress: the backend plus a WordPress plugin. The plain-PHP helpers are removed.

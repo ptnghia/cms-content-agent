@@ -22,12 +22,13 @@ const HOUR = 3_600_000;
 
 /** Sums usage over every CLI invocation of one request (retries and nudges included). */
 function usageMeter() {
-  const t = { turns: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0, backend: '', status: 'UNKNOWN' };
+  const t = { turns: 0, inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0, backend: '', model: '', status: 'UNKNOWN' };
   return {
     add(out) {
       if (!out) return;
       t.turns += 1;
       t.backend = out.backend || t.backend;
+      t.model = out.usage?.model || t.model;
       t.status = out.status || t.status;
       for (const k of ['inputTokens', 'outputTokens', 'cachedTokens', 'costUsd']) t[k] += Number(out.usage?.[k]) || 0;
     },

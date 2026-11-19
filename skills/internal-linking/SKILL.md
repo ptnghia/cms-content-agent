@@ -5,7 +5,7 @@ compose: new, optimize
 ---
 # Liên kết nội bộ
 
-- Chỉ liên kết tới trang **có thật** trong danh mục trang (`site/inventory.md`); dùng đúng slug, dạng `<a href="slug.html">anchor</a>`. Không bịa slug.
+- Chỉ liên kết tới trang **có thật** trong danh mục trang (`site/inventory.md`); `href` chép nguyên văn từ cột **Link** (vd. `<a href="/ten-bai/">anchor</a>`), không tự ghép slug, không thêm `.html`. Không bịa link.
 - 2–4 liên kết mỗi bài; ưu tiên trang cùng chủ đề, trang bán hàng liên quan, và trang có điểm SEO thấp / ít được liên kết.
 - Anchor mô tả nội dung trang đích (không dùng "xem thêm", "tại đây"); đa dạng, không lặp cùng anchor tới cùng một trang.
 - Đặt liên kết ở chỗ ngữ cảnh khớp trong thân bài, không dồn vào cuối; không liên kết quá một lần tới cùng một trang.

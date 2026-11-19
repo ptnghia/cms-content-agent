@@ -38,6 +38,7 @@ export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent, s
   let resultText = '';
   let errorText = '';
   let usage = normalizeUsage();
+  let model = '';
   const denied = [];
 
   const emit = (text) => {
@@ -51,6 +52,7 @@ export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent, s
     onJson: (ev) => {
       if (ev.type === 'system' && ev.subtype === 'init') {
         sid = ev.session_id || sid;
+        model = ev.model || model;
         onEvent({ type: 'init', sessionId: sid });
       } else if (ev.type === 'stream_event') {
         const e = ev.event || {};
@@ -64,7 +66,7 @@ export async function runTurn({ prompt, cwd, addDirs = [], sessionId, onEvent, s
       } else if (ev.type === 'result') {
         sid = ev.session_id || sid;
         resultText = typeof ev.result === 'string' ? ev.result : '';
-        usage = normalizeUsage(ev.usage, ev.total_cost_usd);
+        usage = { ...normalizeUsage(ev.usage, ev.total_cost_usd), model: model || Object.keys(ev.modelUsage || {})[0] || '' };
         for (const d of ev.permission_denials || []) denied.push(d.tool_name || 'tool');
         if (ev.subtype === 'success' && !ev.is_error) status = 'SUCCESS';
         else if (ev.subtype === 'error_max_turns') status = 'MAX_TURNS';

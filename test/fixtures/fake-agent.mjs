@@ -61,7 +61,7 @@ function main() {
     out({ type: 'turn.completed', usage: { input_tokens: 200, cached_input_tokens: 50, output_tokens: 30 } });
   } else {
     const id = argAfter('--resume') || 'claude-session-1';
-    out({ type: 'system', subtype: 'init', session_id: id, tools: ['Read', 'Write'] });
+    out({ type: 'system', subtype: 'init', session_id: id, model: 'claude-test-model', tools: ['Read', 'Write'] });
     out({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'posts/stats.md' } }] } });
     if (mode === 'fail') {
       out({ type: 'result', subtype: 'error_during_execution', is_error: true, result: 'API overloaded', session_id: id });

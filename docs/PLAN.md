@@ -64,6 +64,11 @@ Trạng thái: [x] xong · [ ] chưa làm
 - [ ] Giới hạn tần suất dùng chung khi chạy nhiều instance (SQLite / Redis)
 - [ ] Ngân sách chi phí theo site (chặn khi vượt `costUsd` tháng)
 
+## Giai đoạn 8 — Chạy thật & mở rộng quy mô
+- [x] Chạy thử với Claude Code thật trên WordPress + WooCommerce + Yoast (xem [FIELD_TEST.md](FIELD_TEST.md)); sửa liên kết nội bộ `.html`, nhãn danh mục, ghi model vào usage
+- [ ] Quốc tế hoá prompt / skill / widget, đưa plugin lên wordpress.org
+- [ ] Adapter gọi thẳng Claude API (prompt caching, không cần tiến trình CLI) để giảm chi phí cố định ~27k token mỗi lượt
+
 ## Rủi ro đã biết
 - Mỗi lượt mất khoảng 10–60 giây. Widget hiển thị stream và trạng thái.
 - Mỗi lượt là một tiến trình CLI riêng, tốn RAM/CPU, nên đặt `MAX_CONCURRENT` theo cấu hình máy.
