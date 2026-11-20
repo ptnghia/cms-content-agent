@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+- `PUT /internal/sites/:id/seo/:name` writes `seo/<name>.md` with the workspace unlocked around the write, so a
+  host can own synced data such as the keyword bank (`seo/keywords.md`) while the agent still only reads it.
+
 ## 0.6.1 — Turn context for hosts
 
 ### Added

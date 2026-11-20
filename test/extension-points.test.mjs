@@ -3,7 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, readSse } from './helpers.mjs';
 
@@ -241,6 +241,27 @@ test('internal router: sync one site and write a knowledge file', async () => {
     assert.equal((await put('-lead', 'x')).status, 400);
     assert.equal((await put('big', 'x'.repeat(70 * 1024))).status, 400);
     assert.equal((await fetch(`${base}/internal/sites/a/knowledge/site-profile`, { method: 'POST', headers: auth, body: '{}' })).status, 405);
+  } finally { await close(); }
+});
+
+test('internal router: write a synced seo/ file through the workspace lock', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, async () => {
+  const dataDir = tmp();
+  const { base, close } = await start({ sites: { a: site() }, store: createFileStore({ dataDir }), runTurn: fakeRunTurn(), internal: { token: INTERNAL } });
+  const auth = { Authorization: `Bearer ${INTERNAL}`, 'Content-Type': 'application/json' };
+  const put = (name, content) => fetch(`${base}/internal/sites/a/seo/${name}`, { method: 'PUT', headers: auth, body: JSON.stringify({ content }) });
+  try {
+    // A sync locks seo/ read-only afterwards; the host can still replace a file in it.
+    assert.equal((await fetch(`${base}/internal/sites/a/sync`, { method: 'POST', headers: auth })).status, 200);
+    assert.equal((await put('keywords', '# Keyword bank (1)\n')).status, 200);
+    const file = path.join(dataDir, 'sites', 'a', 'seo', 'keywords.md');
+    assert.equal(readFileSync(file, 'utf8'), '# Keyword bank (1)\n');
+    assert.equal((await put('keywords', '# Keyword bank (2)\n')).status, 200);
+    assert.equal(readFileSync(file, 'utf8'), '# Keyword bank (2)\n');
+    // ...and it is locked again for the agent.
+    assert.equal(statSync(file).mode & 0o222, 0, 'read-only after the write');
+    assert.equal((await put('big', 'x'.repeat(520 * 1024))).status, 400);
+    assert.equal((await put('..', 'x')).status, 404);
+    assert.equal((await fetch(`${base}/internal/sites/a/seo/keywords`, { method: 'POST', headers: auth, body: '{}' })).status, 405);
   } finally { await close(); }
 });
 

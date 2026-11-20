@@ -4,6 +4,7 @@
 //
 //   POST /internal/sites/:id/sync               run a full sync of one site      -> sync result
 //   PUT  /internal/sites/:id/knowledge/:name    write knowledge/<name>.md        {content} -> {ok}
+//   PUT  /internal/sites/:id/seo/:name          write seo/<name>.md (synced data) {content} -> {ok}
 //   POST /internal/sites/:id/tasks/:task        one AI turn that answers JSON     {input, uid?} -> {result, usage}
 //
 // Every request needs `Authorization: Bearer <token>`. Task turns go through beforeTurn / afterTurn
@@ -13,6 +14,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile, rename, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { syncPosts } from './sync.mjs';
+import { withUnlocked } from './workspace-guard.mjs';
 
 /**
  * @typedef {object} InternalTask
@@ -22,6 +24,7 @@ import { syncPosts } from './sync.mjs';
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const MAX_KNOWLEDGE_BYTES = 64 * 1024;
+const MAX_SEO_BYTES = 512 * 1024;
 
 const jsonOnly = (shape) =>
   `\n\nAnswer with ONLY one JSON value, no prose and no code fence, exactly in this shape:\n${shape}\n` +
@@ -159,20 +162,30 @@ export function createInternalRouter({ token, tasks, provider, store, runTurn, g
     }
   }
 
-  async function handleKnowledge(req, res, siteId, name) {
+  /**
+   * Writes <dir>/<name>.md in the site workspace, atomically. knowledge/ is the agent's own area;
+   * seo/ holds synced data that is read-only for the agent between syncs, so it is written with the
+   * workspace unlocked (shared with a sync running at the same time) and locked again afterwards.
+   * A host uses it for data it owns instead of the website (e.g. seo/keywords.md from its database).
+   */
+  async function handleFile(req, res, siteId, dir, name, maxBytes) {
     if (!NAME_RE.test(name)) return sendJson(res, 400, { error: 'bad_name' });
     if (!(await siteOr404(res, siteId))) return;
     let body;
-    try { body = await readJson(req, MAX_KNOWLEDGE_BYTES * 2); } catch { return sendJson(res, 400, { error: 'bad_json' }); }
-    if (!isObject(body) || typeof body.content !== 'string' || Buffer.byteLength(body.content) > MAX_KNOWLEDGE_BYTES) {
+    try { body = await readJson(req, maxBytes * 2); } catch { return sendJson(res, 400, { error: 'bad_json' }); }
+    if (!isObject(body) || typeof body.content !== 'string' || Buffer.byteLength(body.content) > maxBytes) {
       return sendJson(res, 400, { error: 'bad_content' });
     }
-    const dir = path.join(await store.ensureWorkspace(siteId), 'knowledge');
-    await mkdir(dir, { recursive: true });
-    const file = path.join(dir, `${name}.md`);
-    const tmp = `${file}.${randomUUID()}.tmp`;
-    await writeFile(tmp, body.content, 'utf8');
-    await rename(tmp, file);
+    const workspace = await store.ensureWorkspace(siteId);
+    const write = async () => {
+      const folder = path.join(workspace, dir);
+      await mkdir(folder, { recursive: true });
+      const file = path.join(folder, `${name}.md`);
+      const tmp = `${file}.${randomUUID()}.tmp`;
+      await writeFile(tmp, body.content, 'utf8');
+      await rename(tmp, file);
+    };
+    await (dir === 'knowledge' ? write() : withUnlocked(workspace, write));
     sendJson(res, 200, { ok: true });
   }
 
@@ -189,11 +202,12 @@ export function createInternalRouter({ token, tasks, provider, store, runTurn, g
   return async function internalRouter(req, res, p) {
     const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
     if (!m || !safeEqual(m[1], token)) return sendJson(res, 401, { error: 'unauthorized' });
-    const route = /^\/internal\/sites\/([a-z0-9_-]{1,40})\/(sync|knowledge|tasks)(?:\/([a-z0-9-]{1,40}))?$/i.exec(p);
+    const route = /^\/internal\/sites\/([a-z0-9_-]{1,40})\/(sync|knowledge|seo|tasks)(?:\/([a-z0-9-]{1,40}))?$/i.exec(p);
     if (!route) return sendJson(res, 404, { error: 'not_found' });
     const [, siteId, kind, name] = route;
     if (kind === 'sync' && !name && req.method === 'POST') return handleSync(res, siteId);
-    if (kind === 'knowledge' && name && req.method === 'PUT') return handleKnowledge(req, res, siteId, name);
+    if (kind === 'knowledge' && name && req.method === 'PUT') return handleFile(req, res, siteId, 'knowledge', name, MAX_KNOWLEDGE_BYTES);
+    if (kind === 'seo' && name && req.method === 'PUT') return handleFile(req, res, siteId, 'seo', name, MAX_SEO_BYTES);
     if (kind === 'tasks' && name && req.method === 'POST') return handleTask(req, res, siteId, name);
     return sendJson(res, 405, { error: 'method_not_allowed' });
   };
