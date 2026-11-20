@@ -1,5 +1,5 @@
 // Minimal Messages API stand-in for tests: answers POST /v1/messages with scripted SSE streams.
-// Each script entry is the list of content blocks of one assistant response.
+// Each script entry is the list of content blocks of one assistant response, or { httpError: status }.
 import http from 'node:http';
 
 const sse = (res, type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
@@ -14,6 +14,12 @@ export function startFakeMessagesApi(script) {
       const parsed = JSON.parse(body || '{}');
       requests.push({ url: req.url, headers: req.headers, body: parsed });
       const blocks = script[Math.min(i++, script.length - 1)];
+      if (blocks && !Array.isArray(blocks) && blocks.httpError) {
+        // A scripted API failure, e.g. { httpError: 400 } for "prompt is too long".
+        res.writeHead(blocks.httpError, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'prompt is too long' } }));
+        return;
+      }
       res.writeHead(200, { 'content-type': 'text/event-stream' });
       const usage = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 50, cache_read_input_tokens: 1000 };
       sse(res, 'message_start', { message: { id: `msg_${i}`, type: 'message', role: 'assistant', model: parsed.model, content: [],

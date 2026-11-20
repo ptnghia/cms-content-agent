@@ -385,3 +385,82 @@ test('internal tasks share the concurrency limit, drop outbox files and reject n
     assert.ok(usage.requests >= 2, 'task usage is recorded');
   } finally { await close(); }
 });
+
+test('turn context reaches runTurn and usage records, and limits answer 429', async () => {
+  const runTurn = fakeRunTurn();
+  const usage = [];
+  const after = [];
+  const inner = createFileStore({ dataDir: tmp() });
+  const store = { ...inner, recordUsage: async (e) => { usage.push(e); return inner.recordUsage(e); } };
+  let refuse = false;
+  const { base, close } = await start({
+    sites: { a: site() }, store, runTurn,
+    beforeTurn: async () => (refuse ? { ok: false, code: 'rate_limited', message: 'Chậm lại' } : { ok: true }),
+    afterTurn: async (ctx) => { after.push(ctx); },
+  });
+  try {
+    await readSse(await chat(base));
+    await until(() => after.length);
+    const [call] = runTurn.calls;
+    assert.equal(call.siteId, 'a');
+    assert.equal(call.kind, 'chat');
+    assert.equal(call.site.name, 'Site A');
+    assert.equal(call.requestId, after[0].requestId);
+    assert.equal(usage[0].requestId, after[0].requestId, 'usage row and charge share the request id');
+    assert.ok(after[0].conversationId, 'chat afterTurn knows the conversation');
+
+    refuse = true;
+    const res = await chat(base);
+    assert.equal(res.status, 429);
+    assert.deepEqual(await res.json(), { error: 'rate_limited', message: 'Chậm lại' });
+  } finally { await close(); }
+});
+
+test('internal tasks pass onEvent and the turn context to runTurn', async () => {
+  const strict = async (opts) => {
+    opts.onEvent({ type: 'init', sessionId: 'x' }); // the api adapter calls it unconditionally
+    return { response: `{"kind":"${opts.kind}","site":"${opts.siteId}"}`, denied: [], status: 'SUCCESS', usage: USAGE, backend: 'api' };
+  };
+  const { base, close } = await start({ sites: { a: site() }, store: createFileStore({ dataDir: tmp() }), runTurn: strict, internal: { token: INTERNAL } });
+  try {
+    const res = await fetch(`${base}/internal/sites/a/tasks/seo-plan`, {
+      method: 'POST', headers: { Authorization: `Bearer ${INTERNAL}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ input: {} }),
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual((await res.json()).result, { kind: 'task:seo-plan', site: 'a' });
+  } finally { await close(); }
+});
+
+test('a turn that fails after spending tokens is still metered and reported to afterTurn', async () => {
+  const usage = [];
+  const after = [];
+  const failing = async () => { const e = new Error('api: prompt is too long'); e.usage = USAGE; e.backend = 'api'; throw e; };
+  const inner = createFileStore({ dataDir: tmp() });
+  const store = { ...inner, recordUsage: async (e) => { usage.push(e); return inner.recordUsage(e); } };
+  const { base, close } = await start({ sites: { a: site() }, store, runTurn: failing, afterTurn: async (ctx) => { after.push(ctx); } });
+  try {
+    const events = await readSse(await chat(base));
+    assert.equal(events.at(-1).type, 'error');
+    await until(() => after.length);
+    assert.equal(after[0].status, 'ERROR');
+    assert.equal(after[0].usage.costUsd, 0.002, 'tokens spent before the failure are charged');
+    assert.ok(after[0].usage.turns >= 1);
+    assert.equal(usage[0]?.costUsd, 0.002);
+  } finally { await close(); }
+});
+
+test('a beforeTurn that says yes after its timeout gets an afterTurn to release what it took', async () => {
+  const after = [];
+  let resolveLate;
+  const { base, close } = await start({
+    sites: { a: site() }, store: createFileStore({ dataDir: tmp() }), runTurn: fakeRunTurn(), hookTimeoutMs: 30,
+    beforeTurn: () => new Promise((r) => { resolveLate = () => r({ ok: true }); }),
+    afterTurn: async (ctx) => { after.push(ctx.status); },
+  });
+  try {
+    assert.equal((await chat(base)).status, 503);
+    resolveLate();
+    await until(() => after.length);
+    assert.deepEqual(after, ['CANCELLED']);
+  } finally { await close(); }
+});

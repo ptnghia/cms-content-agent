@@ -118,7 +118,10 @@ export function createInternalRouter({ token, tasks, provider, store, runTurn, g
       const before = await listDir(outbox);
       let out;
       try {
-        out = await runTurn({ prompt: task.prompt(body.input, { site, siteId }), cwd: workspace, addDirs, signal: ac.signal });
+        out = await runTurn({
+          prompt: task.prompt(body.input, { site, siteId }), cwd: workspace, addDirs, signal: ac.signal,
+          onEvent: () => {}, site, siteId, kind: ctx.kind, requestId: ctx.requestId,
+        });
       } finally {
         // Tasks answer in JSON only; a proposal written anyway (e.g. prompted by injected input) is dropped.
         for (const f of await listDir(outbox)) if (!before.has(f)) await rm(path.join(outbox, f), { recursive: true, force: true });
@@ -138,12 +141,20 @@ export function createInternalRouter({ token, tasks, provider, store, runTurn, g
       sendJson(res, 200, { result: parsed.value, usage });
     } catch (e) {
       status = ac.signal.aborted ? 'CANCELLED' : 'ERROR';
+      if (e && e.usage) {
+        // Tokens spent before the failure are still a cost (api adapter).
+        usage.turns = 1;
+        usage.backend = e.backend || '';
+        usage.model = e.usage.model || '';
+        usage.status = 'ERROR';
+        for (const k of ['inputTokens', 'outputTokens', 'cachedTokens', 'costUsd']) usage[k] = Number(e.usage[k]) || 0;
+      }
       console.error(`[internal] task ${name} ${siteId}: ${e.message}`);
       if (!res.headersSent) sendJson(res, 502, { error: 'task_failed' });
     } finally {
       slots.release();
       if (!res.writableEnded) res.end();
-      if (usage.turns) await logUsage({ siteId, uid, kind: ctx.kind, ...usage, status }, startedAt);
+      if (usage.turns) await logUsage({ siteId, uid, kind: ctx.kind, requestId: ctx.requestId, ...usage, status }, startedAt);
       if (gated) await finishTurn({ ...ctx, usage, status });
     }
   }

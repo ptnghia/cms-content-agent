@@ -119,9 +119,10 @@ final class Rest {
 				'methods'             => 'GET',
 				'callback'            => static fn() => rest_ensure_response(
 					array(
-						'ok'      => true,
-						'plugin'  => CONTENT_AGENT_VERSION,
-						'site_id' => Settings::get( 'site_id' ),
+						'ok'       => true,
+						'plugin'   => CONTENT_AGENT_VERSION,
+						'site_id'  => Settings::get( 'site_id' ),
+						'features' => Settings::features(),
 					)
 				),
 				'permission_callback' => $auth,

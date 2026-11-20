@@ -99,6 +99,39 @@ test('api adapter: tool loop, streaming, caching, cost, resume', async () => {
   }
 });
 
+test('api adapter: per-turn model wins over API_MODEL, and onEvent is optional', async () => {
+  const api = await startFakeMessagesApi([[{ type: 'text', text: '{"ok":true}' }]]);
+  process.env.API_SESSIONS_DIR = tmp();
+  process.env.API_MODEL = 'claude-sonnet-5-5';
+  _setClient(new Anthropic({ apiKey: 'test', baseURL: api.url, maxRetries: 0 }));
+  try {
+    const out = await runTurn({ prompt: 'JSON please', cwd: workspace(), model: 'claude-opus-5-5' });
+    assert.equal(out.status, 'SUCCESS');
+    assert.equal(api.requests[0].body.model, 'claude-opus-5-5');
+  } finally {
+    await api.close();
+    delete process.env.API_MODEL;
+  }
+});
+
+test('api adapter: a failure after some rounds still reports the tokens spent', async () => {
+  const api = await startFakeMessagesApi([
+    [{ type: 'tool_use', name: 'read_file', input: { path: 'posts/stats.md' } }],
+    { httpError: 400 },
+  ]);
+  process.env.API_SESSIONS_DIR = tmp();
+  _setClient(new Anthropic({ apiKey: 'test', baseURL: api.url, maxRetries: 0 }));
+  try {
+    const err = await runTurn({ prompt: 'Read everything', cwd: workspace(), model: 'claude-sonnet-5-5' }).catch((e) => e);
+    assert.match(err.message, /^api: /);
+    assert.equal(err.backend, 'api');
+    assert.equal(err.usage.inputTokens, 150, 'the first, successful response is counted');
+    assert.ok(err.usage.costUsd > 0);
+  } finally {
+    await api.close();
+  }
+});
+
 test('api adapter: cost table', () => {
   assert.equal(costOf('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
   assert.equal(costOf('claude-opus-5-5', { cache_read_input_tokens: 1e6, cache_creation_input_tokens: 1e6 }), 0.2 + 5);

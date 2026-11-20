@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.6.1 — Turn context for hosts
+
+### Added
+- `runTurn` receives `site`, `siteId`, `kind` and `requestId`, so a host's runTurn wrapper can pick the model per
+  customer; the `api` adapter takes `model` per turn (falls back to `API_MODEL`).
+- Usage records carry the turn's `requestId` (the same id as the hooks) and chat `afterTurn` gets `conversationId`.
+- `beforeTurn` refusal codes `rate_limited` and `server_busy` answer HTTP 429.
+- Plugin: `/ping` reports the site's `features` (e.g. `products` only with WooCommerce).
+
+### Fixed
+- Internal JSON tasks crashed with the real `api` adapter (no `onEvent` was passed); `onEvent` is now optional there.
+- A turn that failed after spending tokens (e.g. "prompt is too long" at the tenth tool round) reported no usage, so it
+  was neither recorded nor charged: the `api` adapter now attaches the usage spent to its error and the app meters it
+  (chat, compose, tasks).
+- A `beforeTurn` that answered after `hookTimeoutMs` could keep what it reserved: when it later says yes, `afterTurn` is
+  called with `status: 'CANCELLED'` and zero usage so the host releases it.
+
 ## 0.6.0 — Extension points for hosted services
 
 Lets a hosting layer (e.g. a SaaS) run the backend as a dependency without forking it. Self-hosting is unchanged.

@@ -16,6 +16,11 @@
  * @property {string} [sessionId]             resume this CLI session
  * @property {(ev: object) => void} onEvent   {type:'init',sessionId} | {type:'delta',text} | {type:'step',stepType,state}
  * @property {AbortSignal} [signal]
+ * @property {string} [model]                 model for this turn (api adapter; CLIs ignore it)
+ * @property {object} [site]                  the site this turn runs for (hosts' runTurn wrappers may read it)
+ * @property {string} [siteId]
+ * @property {string} [kind]                  chat | compose | task:<name>
+ * @property {string} [requestId]             same id as in beforeTurn / afterTurn
  * @typedef {{sessionId?:string, response:string, status:string, denied:string[], usage:Usage}} TurnResult
  * @typedef {(opts: TurnOptions) => Promise<TurnResult>} RunTurn
  */
