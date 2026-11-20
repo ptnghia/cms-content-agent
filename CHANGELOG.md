@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+## 0.6.2 — Host-owned synced files
+
 ### Added
 - `PUT /internal/sites/:id/seo/:name` writes `seo/<name>.md` with the workspace unlocked around the write, so a
   host can own synced data such as the keyword bank (`seo/keywords.md`) while the agent still only reads it.
+
+### Fixed
+- A failed unlock of a workspace (e.g. `chmod` error) left a holder behind, so the workspace was never locked again.
 
 ## 0.6.1 — Turn context for hosts
 

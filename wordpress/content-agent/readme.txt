@@ -4,7 +4,7 @@ Tags: ai, seo, content, chatbot, woocommerce
 Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 0.6.1
+Stable tag: 0.6.2
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -50,6 +50,9 @@ Yes: the backend syncs posts, pages, products and categories so the agent can re
 No. It can only create proposals. Applying a proposal needs a logged-in user with permission to edit that page, and new posts are created as drafts.
 
 == Changelog ==
+
+= 0.6.2 =
+* No changes to the plugin (service release).
 
 = 0.6.1 =
 * The connection check reports which features the site offers.

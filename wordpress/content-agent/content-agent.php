@@ -3,7 +3,7 @@
  * Plugin Name:       Content Agent
  * Plugin URI:        https://github.com/ptnghia/cms-content-agent
  * Description:       AI content & SEO assistant for wp-admin. Chat with an agent that knows your posts, pages and products, audits SEO and writes or optimises content. Every change waits in a review queue until you apply it.
- * Version:           0.6.1
+ * Version:           0.6.2
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            cms-content-agent contributors
@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CONTENT_AGENT_VERSION', '0.6.1' );
+define( 'CONTENT_AGENT_VERSION', '0.6.2' );
 define( 'CONTENT_AGENT_FILE', __FILE__ );
 define( 'CONTENT_AGENT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CONTENT_AGENT_URL', plugin_dir_url( __FILE__ ) );
