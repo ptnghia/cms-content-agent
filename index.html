@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMS Content Agent Pro 0.7.0 · Documentation</title>
+<style>
+  :root { color-scheme: light; --ink:#182831; --muted:#43545c; --line:#d9e1e5; --accent:#00555e; --tint:#eef7f7; }
+  * { box-sizing:border-box; }
+  body { margin:0; color:var(--ink); background:#fff; font:16px/1.62 system-ui,sans-serif; }
+  header { background:var(--tint); border-bottom:1px solid var(--line); }
+  header div, main { max-width:960px; margin:auto; padding:36px 26px; }
+  h1,h2,h3 { line-height:1.2; }
+  h1 { margin:0 0 12px; font-size:clamp(32px,6vw,52px); letter-spacing:-.035em; }
+  h2 { margin:46px 0 12px; font-size:28px; }
+  h3 { margin-top:24px; }
+  p,li { max-width:78ch; }
+  a { color:var(--accent); }
+  nav { display:flex; flex-wrap:wrap; gap:8px 20px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+  code { font-size:.9em; overflow-wrap:anywhere; }
+  pre { padding:14px 16px; background:#f2f5f6; border:1px solid var(--line); overflow:auto; border-radius:6px; font-size:.91em; }
+  pre code { overflow-wrap:normal; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:8px 10px; vertical-align:top; border-bottom:1px solid var(--line); }
+  .table { overflow-x:auto; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+<header><div>
+  <p class="muted">Version 0.7.0</p>
+  <h1>CMS Content Agent Pro</h1>
+  <p>Install the WordPress plugin and self-hosted backend, then review proposed WooCommerce copy against live SKU and variation data before applying it.</p>
+</div></header>
+<main>
+<nav aria-label="Contents">
+  <a href="#requirements">Requirements</a>
+  <a href="#install">Install and connect</a>
+  <a href="#workflow">Review workflow</a>
+  <a href="#rules">Copy checks</a>
+  <a href="#data">Data and maintenance</a>
+  <a href="#help">Troubleshooting</a>
+</nav>
+
+<section id="requirements">
+<h2>Requirements</h2>
+<ul>
+  <li>WordPress 6.2 or later and PHP 7.4 or later, as declared by the plugin. For the demo, use PHP 8.3 or later with SQLite extensions.</li>
+  <li>WooCommerce for products, SKUs, variation descriptions and catalog checks. The documented demo uses WordPress 7.1.5, WooCommerce 11.3.1 and PHP 8.4.</li>
+  <li>Administrator access to install the plugin and configure its backend. Reviewers need the capability to edit the target. A WooCommerce variation also requires permission to edit its parent.</li>
+  <li>Docker with the Compose plugin and an HTTPS hostname for the backend. The backend must reach WordPress over HTTPS, and the reviewer’s browser must reach the backend.</li>
+  <li>An Anthropic API key and access to a Messages API model for the deployment below. Provider usage is billed separately. The local WooCommerce demo runs without a backend account or API key.</li>
+</ul>
+</section>
+
+<section id="install">
+<h2>Install and connect</h2>
+
+<h3>1. Install the WordPress plugin</h3>
+<p>Back up WordPress and try the installation on staging. In WordPress, go to <strong>Plugins → Add New Plugin → Upload Plugin</strong>. Upload <code>cms-content-agent-pro-plugin-0.7.0.zip</code>, then activate <strong>CMS Content Agent Pro</strong>. Activate WooCommerce before copying backend configuration. For an existing Content Agent installation, WordPress will offer to replace the plugin in the same <code>content-agent</code> directory.</p>
+
+<h3>2. Configure the Docker backend</h3>
+<p>Extract <code>cms-content-agent-pro-backend-0.7.0.zip</code> on your server and open its <code>backend</code> directory. Copy the example environment file and create an empty site registry.</p>
+<pre><code>umask 077
+cp .env.example .env
+printf '{}\n' &gt; config/sites.json
+chmod 700 config</code></pre>
+<p>Set the following entries in <code>.env</code>. Replace the key and model placeholders with values from your Anthropic account. Keep the file private. These settings use the direct API backend and skip optional CLI downloads.</p>
+<pre><code>AGENT_BACKEND=api
+INSTALL_CLAUDE=0
+INSTALL_CODEX=0
+ANTHROPIC_API_KEY=your-key
+API_MODEL=your-messages-api-model-id
+DEV_MODE=0</code></pre>
+<p>In the WordPress dashboard, open <strong>CMS Content Agent Pro → Settings</strong>. Enter the HTTPS address for the backend, save, then copy the <strong>Backend configuration</strong> JSON to <code>config/sites.json</code>. Merge the site entry into the object when connecting an additional site. Compose mounts the JSON read-only. On a standard Linux host, grant the container process permission to read the mounted file while keeping the host directory private. Then build and start the service.</p>
+<pre><code>chmod 644 config/sites.json
+docker compose config --quiet
+docker compose up --build -d agent
+curl -fsS http://127.0.0.1:3000/api/health</code></pre>
+<p>Run the health check on the Docker host. In production, keep port 3000 bound to loopback and forward traffic through a reverse proxy on HTTPS with a valid certificate. Pass Server-Sent Events without buffering and set a read timeout long enough to finish a chat request. An example location block for an existing TLS-enabled nginx virtual host follows.</p>
+<pre><code>location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_read_timeout 600s;
+}</code></pre>
+
+<h3>3. Verify the connection</h3>
+<p>Reload the plugin’s Settings page and verify that the backend is reachable. Open the chat widget and run a site sync. On a staging catalog, ask the assistant to propose a description for a known variation SKU and include the exact variation ID. Open <strong>CMS Content Agent Pro → Proposals</strong> to review the queued result.</p>
+</section>
+
+<section id="workflow">
+<h2>Review a product proposal</h2>
+<ol>
+  <li>Open a pending proposal. The page shows the target, WooCommerce catalog evidence, findings and a before-and-after diff.</li>
+  <li>Compare the stated SKU and facts with the variation ID, selected attributes and current prices. Check claims marked <strong>Verify</strong> with the product team or manufacturer.</li>
+  <li>If Apply is blocked, reject the proposal with a reason and ask for corrected copy. If the evidence supports the draft and Apply is available, choose <strong>Apply changes</strong>.</li>
+  <li>Check the product page or variation in WooCommerce. You can open the applied proposal and choose <strong>Revert to previous version</strong> to restore the saved description. Check for newer edits before reverting.</li>
+</ol>
+<p>For a variation, the proposal targets the exact WooCommerce variation ID and updates its description using WooCommerce’s product API. The store continues to use WooCommerce fields for SKU, price, stock and variation attributes.</p>
+</section>
+
+<section id="rules">
+<h2>Supported copy checks</h2>
+<div class="table"><table>
+<thead><tr><th scope="col">Copy</th><th scope="col">Catalog comparison</th></tr></thead>
+<tbody>
+<tr><th scope="row">SKU</th><td>Use an explicit label such as <code>SKU: TRAIL-750</code>. An exact match is case-insensitive. A different SKU blocks a direct proposal when the target has its own SKU.</td></tr>
+<tr><th scope="row">Capacity</th><td>Recognizes English mL and L quantities. A single clear quantity is compared with a single value in a <em>Capacity</em> or <em>Volume</em> attribute. <code>0.75 L</code> and <code>750 mL</code> are equivalent. Ranges and accessory contexts need review.</td></tr>
+<tr><th scope="row">Price</th><td>For direct figures, use English-style decimals and an ISO currency code such as <code>USD 29.00</code>. Use <code>regular price</code> or <code>sale price</code> immediately before the amount to compare against those fields. The default comparator is WooCommerce’s stored current price. Tax, shipping, conversion, contextual pricing and multi-currency display prices need manual review.</td></tr>
+<tr><th scope="row">Care and performance</th><td>Some English claims, including leakproof, dishwasher-safe and selected hot or cold duration phrases, trigger a manual evidence check.</td></tr>
+</tbody>
+</table></div>
+<p>For shared copy on a variable product, put exactly one active variation SKU and its claim in the same sentence, for example <code>SKU: TRAIL-750, 750 mL for USD 29.00.</code> Unscoped claims need manual verification. A wildcard attribute or missing structured fact can also require verification.</p>
+<p>The check scans proposed long and short descriptions, SEO titles and meta descriptions. It checks the resolved field when a proposal uses a patch and runs again on Apply. If the target SKU or variation selection changed since a new proposal was queued, create a fresh proposal for the updated target. The parent evidence reads up to 100 child records, while a direct variation proposal reads the exact variant. The scanner reports its coverage limits. It recognizes specific English patterns, so review surrounding context and other product claims before publishing.</p>
+</section>
+
+<section id="data">
+<h2>Data and maintenance</h2>
+<p>WordPress generates an API key and a token secret when the plugin is activated. Restrict access to those values and the provider key. The backend syncs enabled site content, catalog data and proposal status into its site workspace. When you use a provider-backed feature, the backend sends the prompt and relevant context to the configured provider. Review each provider’s processing and retention settings before sending customer material.</p>
+<p>Back up the WordPress database, private backend config and <code>agent-data</code> Docker volume before updates. Leave <code>DEV_MODE=0</code> on hosted deployments. If rotating WordPress keys, replace the matching site entry in <code>config/sites.json</code> and restart the service using <code>docker compose restart agent</code>. Deactivation and uninstall preserve proposals and settings by default. To delete those records on uninstall, set <code>CONTENT_AGENT_DELETE_DATA_ON_UNINSTALL</code> to <code>true</code> in <code>wp-config.php</code> before deleting the plugin. Applied product copy and existing SEO metadata remain in WordPress.</p>
+</section>
+
+<section id="help">
+<h2>Troubleshooting</h2>
+<ul>
+  <li><strong>Backend unreachable.</strong> Check <code>docker compose logs agent</code>, the local health endpoint, DNS, TLS and browser access to the configured backend URL.</li>
+  <li><strong>WordPress sync returns 401 or 403.</strong> Verify the site API key, the <code>content-agent/v1</code> endpoint, and forwarding of the <code>Authorization</code> header through WordPress’s proxy. Check that your security plugin allows the authorized backend request.</li>
+  <li><strong>Backend works but chat fails.</strong> Verify the API key, provider account, selected model and request limits. Open logs on the backend host.</li>
+  <li><strong>A variation is missing.</strong> Confirm WooCommerce is active, activate the variation, run site sync again and check whether the parent exceeded the 100-child evidence limit.</li>
+  <li><strong>Apply is blocked.</strong> Check the most recent catalog data and patch context, then queue a corrected proposal. A review warning can be cleared by verifying the claim editorially before applying.</li>
+</ul>
+<p class="muted">The plugin and backend ship with their MIT license notices.</p>
+</section>
+</main>
+</body>
+</html>
