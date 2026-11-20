@@ -48,8 +48,16 @@ const serial = (fn) => (chain = chain.then(fn, fn));
 export async function withUnlocked(ws, fn) {
   await serial(async () => {
     const n = holders.get(ws) || 0;
+    if (n === 0) {
+      try {
+        await unlockWorkspace(ws);
+      } catch (e) {
+        // Half unlocked: lock it again and leave no holder behind, so the next writer starts clean.
+        await lockWorkspace(ws).catch(() => {});
+        throw e;
+      }
+    }
     holders.set(ws, n + 1);
-    if (n === 0) await unlockWorkspace(ws);
   });
   try {
     return await fn();

@@ -98,6 +98,7 @@ Enabled by `internal: { token }` (at least 32 characters). Every call needs `Aut
 |---|---|---|
 | `POST /internal/sites/:id/sync` | – | the sync result (`{count, …}`), 502 `sync_failed` |
 | `PUT /internal/sites/:id/knowledge/:name` | `{content}` (≤ 64 KB) | writes `knowledge/<name>.md` in the site workspace (e.g. a site profile) |
+| `PUT /internal/sites/:id/seo/:name` | `{content}` (≤ 512 KB) | writes `seo/<name>.md`, the synced data the agent may only read, with the workspace unlocked around the write; for data the host owns instead of the website (e.g. `seo/keywords.md` from its database, with the `keywords` feature off) |
 | `POST /internal/sites/:id/tasks/:task` | `{input, uid?}` | `{result, usage}`: one AI turn whose answer is parsed as JSON; 502 `bad_task_output` |
 
 Tasks share the server's concurrency limit (`MAX_CONCURRENT`, 429 `server_busy` when full), are cancelled when the
